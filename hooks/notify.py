@@ -141,16 +141,63 @@ def _get_tool_name(data):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 通用弹窗 GUI
+# 通用弹窗 GUI — 中文授权窗口
 # ═══════════════════════════════════════════════════════════════════════════
 
-_POPUP_W = 440
-_POPUP_H = 220
+_POPUP_W = 480
+_POPUP_H = 240
 _BG = "#1e1e1e"
 _FG = "#ffffff"
 _FG_SECONDARY = "#cccccc"
 _BTN_ALLOW_BG = "#2d8c3c"
 _BTN_DENY_BG = "#8c2d2d"
+
+# 工具中文名映射
+_TOOL_CN = {
+    "Bash": "执行命令",
+    "Write": "写入文件",
+    "Edit": "编辑文件",
+    "Read": "读取文件",
+    "Glob": "搜索文件",
+    "Grep": "搜索内容",
+    "Agent": "启动子任务",
+    "Workflow": "启动工作流",
+    "WebSearch": "搜索网页",
+    "WebFetch": "获取网页",
+    "Task": "后台任务",
+    "Skill": "调用技能",
+    "NotebookEdit": "编辑笔记本",
+}
+
+
+def _tool_action_desc(tool_name, tool_input):
+    """提取工具操作摘要（中文），用于弹窗显示。"""
+    if not tool_input:
+        return ""
+    t = tool_name
+    # 优先取中文名
+    label = _TOOL_CN.get(t, t)
+    # 提取关键参数
+    if t == "Bash":
+        cmd = (tool_input.get("command") or tool_input.get("cmd") or "")
+        return f"{label}\n{cmd[:100]}"
+    if t in ("Write", "Edit", "Read"):
+        fp = tool_input.get("file_path", "")
+        return f"{label}\n{fp}"
+    if t == "Glob":
+        return f"{label}\n{tool_input.get('pattern', '')}"
+    if t in ("WebSearch",):
+        return f"{label}\n{tool_input.get('query', '')}"
+    if t == "WebFetch":
+        return f"{label}\n{tool_input.get('url', '')}"
+    if t in ("Agent", "Workflow"):
+        desc = (tool_input.get("prompt") or tool_input.get("description") or "")
+        return f"{label}\n{desc[:80]}"
+    # 通用 fallback
+    for v in tool_input.values():
+        if isinstance(v, str) and len(v) > 5:
+            return f"{label}\n{v[:100]}"
+    return label
 
 
 def _popup_geometry(root, w, h):
@@ -161,25 +208,40 @@ def _popup_geometry(root, w, h):
 
 def _gui_permission_popup(data, tool_name):
     """模态弹窗 → 返回 True(允许) 或 False(拒绝)。"""
+    tool_input = data.get("tool_input") or {}
+    action_desc = _tool_action_desc(tool_name, tool_input)
+
     root = tk.Tk()
     root.title("")
     root.resizable(False, False)
     root.overrideredirect(True)
+    root.attributes("-topmost", True)
     root.configure(bg=_BG)
     _popup_geometry(root, _POPUP_W, _POPUP_H)
 
     frame = tk.Frame(root, bg=_BG, padx=24, pady=20)
     frame.pack(fill="both", expand=True)
 
+    # 标题
     tk.Label(frame, text="🔐  权限请求", font=(FONT, 14, "bold"),
              fg=_FG, bg=_BG, anchor="w").pack(fill="x")
-    tk.Label(frame, text=f"工具：{tool_name}", font=(FONT, 12),
-             fg=_FG_SECONDARY, bg=_BG, anchor="w").pack(fill="x", pady=(12, 4))
-    tk.Label(frame, text="此操作将调用以上工具，是否继续？", font=(FONT, 10),
+
+    # 工具名 + 操作描述
+    tk.Label(frame, text=f"工具：{tool_name}", font=(FONT, 11),
+             fg=_FG_SECONDARY, bg=_BG, anchor="w").pack(fill="x", pady=(8, 2))
+
+    desc_label = tk.Label(frame, text=action_desc, font=(FONT, 10),
+                          fg="#aaaaaa", bg=_BG, anchor="w", justify="left",
+                          wraplength=_POPUP_W - 48)
+    desc_label.pack(fill="x", pady=(0, 6))
+
+    # 提示
+    tk.Label(frame, text="是否允许此操作？", font=(FONT, 10),
              fg="#888888", bg=_BG, anchor="w").pack(fill="x")
 
+    # 按钮
     btn_frame = tk.Frame(frame, bg=_BG)
-    btn_frame.pack(fill="x", pady=(18, 0))
+    btn_frame.pack(fill="x", pady=(14, 0))
 
     result = {"v": False}
 
@@ -193,12 +255,12 @@ def _gui_permission_popup(data, tool_name):
 
     tk.Button(btn_frame, text="✅ 允许", command=allow,
               font=(FONT, 11, "bold"), bg=_BTN_ALLOW_BG,
-              fg="white", padx=24, pady=6, relief="flat",
+              fg="white", padx=28, pady=6, relief="flat",
               cursor="hand2", activebackground="#3aad4e"
               ).pack(side="right", padx=(10, 0))
     tk.Button(btn_frame, text="❌ 拒绝", command=deny,
               font=(FONT, 11), bg=_BTN_DENY_BG,
-              fg="white", padx=24, pady=6, relief="flat",
+              fg="white", padx=28, pady=6, relief="flat",
               cursor="hand2", activebackground="#b03a3a"
               ).pack(side="right")
 
@@ -228,7 +290,15 @@ def show_permission_dialog(data):
         return None  # 透传，不拦截
 
     if mode == "popup":
+        # 前台 → 透传，终端显示原生权限提示
+        fg = _is_vscode_foreground()
+        _log(f"[popup] tool={tool_name} foreground={fg}")
+        if fg:
+            return None
+        # 后台 → 弹出中文 GUI 授权
+        _log(f"[popup] calling gui...")
         allowed = _gui_permission_popup(data, tool_name)
+        _log(f"[popup] gui returned allowed={allowed}")
         if allowed:
             return {"behavior": "allow", "updatedPermissions": []}
         return {"behavior": "deny"}
@@ -252,6 +322,8 @@ def show_pre_tool_use(data):
         return None  # 透传，不拦截
 
     if mode == "popup":
+        if _is_vscode_foreground():
+            return None  # 前台 → 透传
         allowed = _gui_permission_popup(data, tool_name)
         decision = "allow" if allowed else "deny"
         return {"permissionDecision": decision, "updatedInput": {}}
