@@ -194,33 +194,29 @@ _TOOL_CN = {
 
 
 def _tool_action_desc(tool_name, tool_input):
-    """提取工具操作摘要（中文），用于弹窗显示。"""
+    """提取操作参数详情，用于弹窗详情区（不含中文工具名——工具名行已显示）。"""
     if not tool_input:
         return ""
     t = tool_name
-    # 优先取中文名
-    label = _TOOL_CN.get(t, t)
-    # 提取关键参数
     if t == "Bash":
         cmd = (tool_input.get("command") or tool_input.get("cmd") or "")
-        return f"{label}\n{cmd[:100]}"
+        return cmd[:2000]
     if t in ("Write", "Edit", "Read"):
-        fp = tool_input.get("file_path", "")
-        return f"{label}\n{fp}"
+        return tool_input.get("file_path", "")
     if t == "Glob":
-        return f"{label}\n{tool_input.get('pattern', '')}"
+        return tool_input.get("pattern", "")
     if t in ("WebSearch",):
-        return f"{label}\n{tool_input.get('query', '')}"
+        return tool_input.get("query", "")
     if t == "WebFetch":
-        return f"{label}\n{tool_input.get('url', '')}"
+        return tool_input.get("url", "")
     if t in ("Agent", "Workflow"):
         desc = (tool_input.get("prompt") or tool_input.get("description") or "")
-        return f"{label}\n{desc[:80]}"
+        return desc[:2000]
     # 通用 fallback
     for v in tool_input.values():
         if isinstance(v, str) and len(v) > 5:
-            return f"{label}\n{v[:100]}"
-    return label
+            return v[:2000]
+    return ""
 
 
 def _popup_geometry(root, w, h):
@@ -234,7 +230,9 @@ def _gui_permission_popup(data, tool_name):
 
     布局：固定分区，详情区可滚动。
     """
-    tool_input = data.get("tool_input") or {}
+    # 从 hookSpecificInput 中提取 tool_input（兼容不同数据格式）
+    inner = data.get("hookSpecificInput") or data
+    tool_input = inner.get("tool_input") or {}
     action_desc = _tool_action_desc(tool_name, tool_input)
 
     root = tk.Tk()
@@ -255,8 +253,10 @@ def _gui_permission_popup(data, tool_name):
     title_lbl.pack(fill="x")
     frame.update_idletasks()
 
-    # ── 工具名行（固定高度） ──
-    tool_lbl = tk.Label(frame, text=f"工具：{tool_name}", font=(FONT, 11),
+    # ── 工具名行（显示英文+中文） ──
+    cn_name = _TOOL_CN.get(tool_name, "")
+    tool_text = f"工具：{tool_name}" + (f"  —  {cn_name}" if cn_name else "")
+    tool_lbl = tk.Label(frame, text=tool_text, font=(FONT, 11),
                          fg=_FG_SECONDARY, bg=_BG, anchor="w")
     tool_lbl.pack(fill="x", pady=(6, 0))
 
@@ -267,7 +267,7 @@ def _gui_permission_popup(data, tool_name):
 
     desc_text = tk.Text(desc_container, font=(FONT, 10),
                          fg="#aaaaaa", bg=_BG,
-                         wrap="word", padx=6, pady=4,
+                         wrap="char", padx=6, pady=4,
                          relief="flat", borderwidth=0,
                          highlightthickness=0)
     desc_text.insert("1.0", action_desc)
