@@ -586,7 +586,7 @@ def show_pre_tool_use(data):
 
         # 已永久允许 → 直接放行，不弹窗
         if _is_permanently_allowed(tool_name):
-            return {"permissionDecision": "allow", "updatedInput": {}}
+            return {"permissionDecision": "allow"}
 
         # 后台 → 弹出中文 GUI 授权
         show_always = _can_always_allow(data)
@@ -595,16 +595,16 @@ def show_pre_tool_use(data):
             return None  # 切回前台 → 透传
         if decision == "always":
             _add_to_permanent_allow(tool_name)
-            return {"permissionDecision": "allow", "updatedInput": {},
+            return {"permissionDecision": "allow",
                     "updatedPermissions": [tool_name]}
         if decision == "allow":
-            return {"permissionDecision": "allow", "updatedInput": {}}
-        return {"permissionDecision": "deny", "updatedInput": {}}
+            return {"permissionDecision": "allow"}
+        return {"permissionDecision": "deny"}
 
     # auto 模式：自动放行
     if tool_name not in _EXEC_TOOLS:
         _log(f"[auto-allow-unknown] {tool_name}")
-    return {"permissionDecision": "allow", "updatedInput": {}}
+    return {"permissionDecision": "allow"}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -715,7 +715,7 @@ def main():
                 }
         elif mode == "permission":
             output = {
-                "hookSpecificOutput": {"updatedInput": result.get("updatedInput", {})},
+                "hookSpecificOutput": {},
                 "systemMessage": "",
             }
             pd = result.get("permissionDecision")
