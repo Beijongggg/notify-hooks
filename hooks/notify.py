@@ -612,11 +612,12 @@ def show_pre_tool_use(data):
 # Stop — 回复完成提醒
 # ═══════════════════════════════════════════════════════════════════════════
 
-_DONE_AUTO_CLOSE_MS = 3000
-_DONE_DEBOUNCE_S = 10  # 10 秒内不重复弹通知（Stop 每轮响应都触发，非仅任务完成时）
+_DONE_POLL_MS = 3000         # 前台检测轮询间隔 (ms)
+_DONE_MAX_WAIT_S = 300        # 最长等 5 分钟，之后强制关闭
+_DONE_DEBOUNCE_S = 10         # 10 秒内不重复弹
 _DONE_W = 320
 _DONE_H = 70
-_DONE_BORDER = "#047857"  # 边框色（比背景深一号）
+_DONE_BORDER = "#047857"
 _LAST_NOTIFY = BASE_DIR / ".last_stop_notify"
 
 
@@ -627,13 +628,16 @@ def _center(root, w, h):
 
 
 def show_done_dialog(data):
-    """回复结束时弹轻量通知。
+    """回复完成通知 — 停留在屏幕上直到用户切回工作页面。
 
-    两个保护：
-    1. 防抖 — Stop 在每轮响应结束时都触发（非仅任务完成），10 秒内不重复弹
-    2. 硬截止 — update 轮询最多 5 秒，超时后强制销毁，防止永不关闭
+    行为：
+    - 通知一直显示，每 3 秒轮询前台检测
+    - 检测到切回前台 → 自动关闭
+    - 最长 5 分钟后强制关闭（防止永不消失）
+    - 点击/Escape 手动关闭
+    - 10 秒防抖：避免工具调用间反复弹出
     """
-    # ── 防抖：避免工具调用间歇反复弹通知 ──
+    # ── 防抖 ──
     try:
         now = time.time()
         if _LAST_NOTIFY.exists():
@@ -646,7 +650,6 @@ def show_done_dialog(data):
     if _is_host_foreground():
         return None
 
-    # 记录时间（显示通知前，防止并发）
     try:
         _LAST_NOTIFY.write_text(str(now))
     except Exception:
@@ -678,7 +681,16 @@ def show_done_dialog(data):
         except tk.TclError:
             pass
 
-    root.after(_DONE_AUTO_CLOSE_MS, close)
+    # 前台检测轮询：用户切回工作页面时自动关闭
+    def _poll_foreground():
+        if closed["v"]:
+            return
+        if _is_host_foreground():
+            close()
+        else:
+            root.after(_DONE_POLL_MS, _poll_foreground)
+
+    root.after(_DONE_POLL_MS, _poll_foreground)
     root.bind("<Escape>", lambda e: close())
     root.bind("<Return>", lambda e: close())
     root.bind("<Button-1>", lambda e: close())
@@ -686,22 +698,23 @@ def show_done_dialog(data):
     root.lift()
     root.focus_force()
 
-    # update 轮询 + 硬截止（不依赖 tk after 回调）
-    deadline = time.monotonic() + (_DONE_AUTO_CLOSE_MS / 1000) + 2.0
-    while not closed["v"] and time.monotonic() < deadline:
+    # 事件循环：等待前台检测或手动关闭
+    from time import monotonic as _mono, sleep as _sleep
+    deadline = _mono() + _DONE_MAX_WAIT_S
+    while not closed["v"] and _mono() < deadline:
         try:
             root.update()
         except tk.TclError:
             break
-        time.sleep(0.02)
+        _sleep(0.05)
 
-    # 安全网：超时强制销毁
     if not closed["v"]:
         try:
             root.destroy()
         except tk.TclError:
             pass
     return None
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════
