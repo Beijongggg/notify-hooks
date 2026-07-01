@@ -2,8 +2,8 @@
 """
 Claude Code Hooks — v2
   授权模式（通过 config.json 切换）:
-    auto  (默认) — PermissionRequest 自动放行，不弹窗
-    popup         — PermissionRequest GUI 弹窗，手动确认
+    auto  (默认) — PermissionRequest / PreToolUse 自动放行，不弹窗
+    popup         — 弹窗授权，手动确认（PreToolUse 覆盖所有工具含 Bash）
 
   Stop → VS Code 后台时轻量完成通知，前台时跳过
 """
@@ -51,7 +51,7 @@ def _load_config():
                 _log(f"[config] unknown mode '{mode}', fallback to auto")
     except Exception as exc:
         _log(f"[config] read error: {exc}")
-    return "auto"  # 默认 / 降级
+    return "auto"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -71,7 +71,7 @@ elif sys.platform == "darwin":
 else:
     FONT = "Noto Sans"
 
-C_SUCCESS = "#059669"  # 绿色
+C_SUCCESS = "#059669"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -131,9 +131,7 @@ _EXEC_TOOLS = {
     "EnterPlanMode", "ExitPlanMode",
     "ListMcpResourcesTool", "ReadMcpResourceTool",
 }
-_INTERACTIVE_TOOLS = {
-    "AskUserQuestion",
-}
+_INTERACTIVE_TOOLS = set()  # 预留
 
 
 def _get_tool_name(data):
@@ -143,44 +141,8 @@ def _get_tool_name(data):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PermissionRequest — 根据 config 模式分发
+# 通用弹窗 GUI
 # ═══════════════════════════════════════════════════════════════════════════
-
-def show_permission_dialog(data):
-    """入口：读取配置后分发给 auto 或 popup 模式。"""
-    mode = _load_config()
-    if mode == "popup":
-        return _handle_popup(data)
-    return _handle_auto(data)
-
-
-def _handle_auto(data):
-    """auto 模式：自动放行执行类工具，拒绝交互类工具。"""
-    tool_name = _get_tool_name(data)
-
-    if tool_name in _INTERACTIVE_TOOLS:
-        return {"behavior": "deny"}
-
-    if tool_name in _EXEC_TOOLS:
-        return {"behavior": "allow", "updatedPermissions": []}
-
-    # 未知/MCP 工具 → 自动允许
-    _log(f"[auto-allow-unknown] {tool_name}")
-    return {"behavior": "allow", "updatedPermissions": []}
-
-
-def _handle_popup(data):
-    """popup 模式：GUI 弹窗授权，用户手动确认。"""
-    tool_name = _get_tool_name(data)
-
-    # 交互类工具不弹窗，直接拒绝
-    if tool_name in _INTERACTIVE_TOOLS:
-        return {"behavior": "deny"}
-
-    return _gui_permission_popup(data, tool_name)
-
-
-# ── 弹窗 GUI ─────────────────────────────────────────────────────────
 
 _POPUP_W = 440
 _POPUP_H = 220
@@ -198,68 +160,93 @@ def _popup_geometry(root, w, h):
 
 
 def _gui_permission_popup(data, tool_name):
-    """模态弹窗：显示工具名，用户点"允许"或"拒绝"。"""
+    """模态弹窗 → 返回 True(允许) 或 False(拒绝)。"""
     root = tk.Tk()
     root.title("")
     root.resizable(False, False)
     root.overrideredirect(True)
     root.configure(bg=_BG)
-
     _popup_geometry(root, _POPUP_W, _POPUP_H)
 
-    # 内容
     frame = tk.Frame(root, bg=_BG, padx=24, pady=20)
     frame.pack(fill="both", expand=True)
 
-    # 标题
     tk.Label(frame, text="🔐  权限请求", font=(FONT, 14, "bold"),
              fg=_FG, bg=_BG, anchor="w").pack(fill="x")
-
-    # 工具名
     tk.Label(frame, text=f"工具：{tool_name}", font=(FONT, 12),
              fg=_FG_SECONDARY, bg=_BG, anchor="w").pack(fill="x", pady=(12, 4))
-
-    # 提示
     tk.Label(frame, text="此操作将调用以上工具，是否继续？", font=(FONT, 10),
              fg="#888888", bg=_BG, anchor="w").pack(fill="x")
 
-    # 按钮区域
     btn_frame = tk.Frame(frame, bg=_BG)
     btn_frame.pack(fill="x", pady=(18, 0))
 
-    result = {"behavior": "deny"}
+    result = {"v": False}
 
     def allow():
-        nonlocal result
-        result = {"behavior": "allow", "updatedPermissions": []}
+        result["v"] = True
         root.destroy()
 
     def deny():
-        nonlocal result
-        result = {"behavior": "deny"}
+        result["v"] = False
         root.destroy()
 
-    btn_allow = tk.Button(btn_frame, text="✅ 允许", command=allow,
-                          font=(FONT, 11, "bold"), bg=_BTN_ALLOW_BG,
-                          fg="white", padx=24, pady=6, relief="flat",
-                          cursor="hand2", activebackground="#3aad4e")
-    btn_allow.pack(side="right", padx=(10, 0))
+    tk.Button(btn_frame, text="✅ 允许", command=allow,
+              font=(FONT, 11, "bold"), bg=_BTN_ALLOW_BG,
+              fg="white", padx=24, pady=6, relief="flat",
+              cursor="hand2", activebackground="#3aad4e"
+              ).pack(side="right", padx=(10, 0))
+    tk.Button(btn_frame, text="❌ 拒绝", command=deny,
+              font=(FONT, 11), bg=_BTN_DENY_BG,
+              fg="white", padx=24, pady=6, relief="flat",
+              cursor="hand2", activebackground="#b03a3a"
+              ).pack(side="right")
 
-    btn_deny = tk.Button(btn_frame, text="❌ 拒绝", command=deny,
-                         font=(FONT, 11), bg=_BTN_DENY_BG,
-                         fg="white", padx=24, pady=6, relief="flat",
-                         cursor="hand2", activebackground="#b03a3a")
-    btn_deny.pack(side="right")
-
-    # 窗口行为
     root.protocol("WM_DELETE_WINDOW", deny)
     root.bind("<Escape>", lambda e: deny())
     root.lift()
     root.focus_force()
-    root.grab_set()  # 模态
+    root.grab_set()
     root.wait_window()
+    return result["v"]
 
-    return result
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PermissionRequest — 旧版 hook 事件（部分工具触发）
+# ═══════════════════════════════════════════════════════════════════════════
+
+def show_permission_dialog(data):
+    mode = _load_config()
+    tool_name = _get_tool_name(data)
+
+    if mode == "popup":
+        allowed = _gui_permission_popup(data, tool_name)
+        if allowed:
+            return {"behavior": "allow", "updatedPermissions": []}
+        return {"behavior": "deny"}
+
+    # auto 模式
+    if tool_name in _EXEC_TOOLS:
+        return {"behavior": "allow", "updatedPermissions": []}
+    _log(f"[auto-allow-unknown] {tool_name}")
+    return {"behavior": "allow", "updatedPermissions": []}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PreToolUse — 新版 hook 事件（所有工具触发，含 Bash）
+# ═══════════════════════════════════════════════════════════════════════════
+
+def show_pre_tool_use(data):
+    mode = _load_config()
+    tool_name = _get_tool_name(data)
+
+    if mode == "popup":
+        allowed = _gui_permission_popup(data, tool_name)
+        decision = "allow" if allowed else "deny"
+        return {"permissionDecision": decision, "updatedInput": {}}
+
+    # auto 模式
+    return {"permissionDecision": "allow", "updatedInput": {}}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -287,7 +274,6 @@ def show_done_dialog(data):
     root.resizable(False, False)
     root.overrideredirect(True)
     root.configure(bg=C_SUCCESS)
-
     _center(root, _DONE_W, _DONE_H)
 
     main = tk.Frame(root, bg=C_SUCCESS)
@@ -322,8 +308,9 @@ def show_done_dialog(data):
 # ═══════════════════════════════════════════════════════════════════════════
 
 HANDLERS = {
-    "PermissionRequest": ("decision", show_permission_dialog),
-    "Stop":              ("decision", show_done_dialog),
+    "PermissionRequest": ("decision",   show_permission_dialog),
+    "PreToolUse":        ("permission", show_pre_tool_use),
+    "Stop":              ("decision",   show_done_dialog),
 }
 
 
@@ -357,7 +344,15 @@ def main():
                     "decision": result,
                 }
             }
-            print(json.dumps(output, ensure_ascii=False))
+        elif mode == "permission":
+            output = {
+                "hookSpecificOutput": result,
+                "systemMessage": "",
+            }
+        else:
+            return
+
+        print(json.dumps(output, ensure_ascii=False))
     except Exception:
         _log(f"[gui-error] {traceback.format_exc()}")
 
