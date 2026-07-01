@@ -1,9 +1,9 @@
-# 更新日志
+# Changelog
 
-## v1.0.0（2026-07-01）
+## v1.0.0 (2026-07-01)
 
-- **弹窗居中**: 修复 Windows 下按钮文字不居中的问题
-- **关闭按钮**: AskUserQuestion 通知增加「知道了」，无需等 30 秒
-- **全工具覆盖**: 所有工具后台弹窗均已验证通过
-- **允许缓存**: 已授权的工具自动放行，不重复弹窗
-- **前后台分离**: VSCode 前台透传原生提示，后台弹出授权窗
+- **Dialog centering**: Fixed button text misalignment on Windows
+- **Close button**: Added "Got it" button to AskUserQuestion notification — no need to wait 30 seconds
+- **Full tool coverage**: All tool background dialogs verified
+- **Permission caching**: Previously authorized tools are auto-approved without repeated dialogs
+- **Foreground/background separation**: VSCode foreground passes through native prompts; background shows permission dialog

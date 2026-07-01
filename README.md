@@ -2,7 +2,7 @@
 
 # Claude Code Notify Hooks
 
-**v1.0.0** — 为 Claude Code 提供权限管理 GUI 弹窗与回复完成通知
+**v1.0.0** — GUI permission dialogs & completion notifications for Claude Code
 
 [![Version](https://img.shields.io/github/v/tag/Beijongggg/notify-hooks?label=version)](https://github.com/Beijongggg/notify-hooks/tags)
 [![License](https://img.shields.io/github/license/Beijongggg/notify-hooks)](LICENSE)
@@ -12,88 +12,88 @@
 
 ---
 
-## 📖 概览
+## 📖 Overview
 
-通过 Claude Code Hooks 系统，在后台运行时用 GUI 弹窗代替终端原生权限提示。
+Replaces native terminal permission prompts with GUI dialogs when Claude Code runs in the background, via the Claude Code Hooks system.
 
-| Hook | 用途 |
-|------|------|
-| **PreToolUse** | 工具调用前弹出中文授权窗，显示工具名与操作详情 |
-| **Stop** | 回复完成后弹出绿色通知条「✅ 回复已完成」 |
-| **PermissionRequest** | 兼容旧版事件，确保所有权限请求都被拦截 |
+| Hook | Purpose |
+|------|---------|
+| **PreToolUse** | Shows a permission dialog (in Chinese) with tool name & operation details before tool execution |
+| **Stop** | Shows a green notification toast "✅ Response complete" after Claude finishes |
+| **PermissionRequest** | Legacy event support — ensures all permission requests are intercepted |
 
 ```
-VSCode 前台 → 终端原生提示（不打扰编辑）
-VSCode 后台 → GUI 授权弹窗（远远看一眼就知道在做什么）
-回复完成     → 绿色通知条 3 秒自消
-Claude 提问   → 轻量通知提醒
+VSCode foreground → Native terminal prompts (no distraction while editing)
+VSCode background → GUI permission dialog (glance and know what's happening)
+Response complete   → Green toast, auto-dismiss in 3 seconds
+Claude asks question → Lightweight notification reminder
 ```
 
-> ⚠️ **默认自动放行所有执行工具**，仅建议个人/小型项目使用。
+> ⚠️ **Auto-approves all execution tools by default.** Recommended for personal/small projects only.
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/9b5b85edb41236becb4a1752de19c56c84e23ea1/install.py -o install.py && python install.py
 ```
 
-重启 Claude Code 即可生效。
+Restart Claude Code and you're good to go.
 
-> 详细步骤见 [install.md](install.md)。
-
----
-
-## 🔀 授权模式
-
-编辑 `~/.claude/hooks/config.json` 切换，修改立即生效：
-
-| 模式 | 设置 | 行为 |
-|------|------|------|
-| **auto**（默认） | `"mode": "auto"` | 所有工具自动放行，无弹窗 |
-| **popup** | `"mode": "popup"` | 后台时弹出中文 GUI 授权窗，手动确认 |
-
-### 授权弹窗特性
-
-- 工具中文名显示（Bash → "执行命令"、Write → "写入文件" 等 20+ 工具）
-- 操作详情预览（命令、文件路径、搜索内容）
-- ❌ 拒绝 / 🔁 始终允许（缓存）/ ✅ 允许（一次）
-- 始终允许自动写入 `settings.json`，后续不弹窗
+> See [install.md](install.md) for detailed instructions.
 
 ---
 
-## 📁 项目结构
+## 🔀 Permission Modes
+
+Edit `~/.claude/hooks/config.json` to switch modes — takes effect immediately:
+
+| Mode | Setting | Behavior |
+|------|---------|----------|
+| **auto** (default) | `"mode": "auto"` | All tools auto-approved, no dialogs |
+| **popup** | `"mode": "popup"` | GUI permission dialog when in background, manual confirmation required |
+
+### Dialog Features
+
+- Chinese display names for 20+ tools (Bash → "Execute Command", Write → "Write File", etc.)
+- Operation detail preview (command, file path, search query)
+- ❌ Deny / 🔁 Always Allow (cached) / ✅ Allow (once)
+- "Always Allow" auto-writes to `settings.json`, no more prompts for that tool
+
+---
+
+## 📁 Project Structure
 
 ```
 notify-hooks/
-├── hooks/notify.py           ← 主脚本（含所有弹窗逻辑）
-├── config.example.json       ← 配置文件模板
-├── settings.example.json     ← 完整 settings.json 示例
-├── install.md                ← 详细安装指南
-├── CHANGELOG.md              ← 版本历史
-└── README.md                 ← 本文件
+├── hooks/notify.py           ← Main script (all dialog logic)
+├── config.example.json       ← Config file template
+├── settings.example.json     ← Full settings.json example
+├── install.md                ← Detailed installation guide
+├── CHANGELOG.md              ← Version history
+└── README.md                 ← This file
 ```
 
 ---
 
-## 💻 系统要求
+## 💻 Requirements
 
-- Claude Code（任意版本）
+- Claude Code (any version)
 - Python 3.8+
-- **Windows**：前台/后台检测完整功能
-- **macOS / Linux**：通知功能基础支持
+- **Windows**: Full foreground/background detection
+- **macOS / Linux**: Basic notification support
 
 ---
 
-## 🔧 故障排查
+## 🔧 Troubleshooting
 
 ```bash
 cat ~/.claude/hooks/notify_error.log
 ```
 
-- **弹窗不出现** → 检查 hooks 配置，确认 `mode` 已设为 `"popup"`
-- **中文显示乱码** → 确保终端 / Python 使用 UTF-8 编码
-- **权限不生效** → 重启 Claude Code 使 hooks 重新加载
+- **Dialog not showing** → Check hooks config, make sure `mode` is set to `"popup"`
+- **Chinese text garbled** → Ensure terminal / Python uses UTF-8 encoding
+- **Permissions not taking effect** → Restart Claude Code to reload hooks
 
-详见 [install.md](install.md)。
+See [install.md](install.md) for more details.

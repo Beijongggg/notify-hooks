@@ -1,46 +1,46 @@
-# 安装指南
+# Installation Guide
 
-## 前置要求
+## Prerequisites
 
-- Claude Code（已安装并可用）
+- Claude Code (installed and working)
 - Python 3.8+
-- （Windows）VS Code / Code Insiders — 用于前台检测功能
+- (Windows) VS Code / Code Insiders — required for foreground detection
 
 ---
 
-## 安装步骤
+## Installation
 
-### 一键安装（推荐）
+### One-liner (Recommended)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/9b5b85edb41236becb4a1752de19c56c84e23ea1/install.py -o install.py && python install.py
 ```
 
-自动下载 notify.py → 创建配置 → 合并 hooks → 验证完成。
+Automatically downloads notify.py → creates config → merges hooks → verifies setup.
 
-### 手动安装
+### Manual Installation
 
 <details>
-<summary>展开手动步骤</summary>
+<summary>Expand manual steps</summary>
 
-#### 1. 复制脚本
+#### 1. Copy the script
 
 ```bash
 mkdir -p ~/.claude/hooks
 cp hooks/notify.py ~/.claude/hooks/notify.py
 ```
 
-#### 2. （可选）复制配置文件
+#### 2. (Optional) Copy config file
 
 ```bash
 cp config.example.json ~/.claude/hooks/config.json
 ```
 
-不复制配置文件则默认以 **`auto`（自动放行）** 模式运行，所有工具自动放行无弹窗。
+Without a config file, the hook runs in **`auto` (auto-approve)** mode — all tools are auto-approved with no dialogs.
 
-#### 3. 配置 Claude Code
+#### 3. Configure Claude Code
 
-编辑 Claude Code 的 settings.json，添加以下 hooks 配置：
+Edit Claude Code's settings.json and add the following hooks:
 
 ```json
 {
@@ -73,70 +73,70 @@ cp config.example.json ~/.claude/hooks/config.json
 }
 ```
 
-配置文件位置：
-- **用户级设置**：`~/.claude/settings.json`
-- **项目级设置**：`.claude/settings.json`
-- **VS Code 中打开**：`Ctrl+Shift+P` → `Claude Code: Open Settings (JSON)`
+Config file locations:
+- **User-level**: `~/.claude/settings.json`
+- **Project-level**: `.claude/settings.json`
+- **Open in VS Code**: `Ctrl+Shift+P` → `Claude Code: Open Settings (JSON)`
 
 </details>
 
 ---
 
-## 模式切换
+## Switching Modes
 
-编辑 `~/.claude/hooks/config.json`，修改 `mode` 字段：
+Edit `~/.claude/hooks/config.json` and change the `mode` field:
 
 ```json
-{ "mode": "auto" }     // 自动放行（默认，不弹窗）
-{ "mode": "popup" }    // 弹窗授权，每步手动确认
+{ "mode": "auto" }     // Auto-approve (default, no dialogs)
+{ "mode": "popup" }    // Permission dialog, manual confirmation for each action
 ```
 
-修改后**立即生效**，无需重启 Claude Code。
+Changes take effect **immediately** — no restart required.
 
 ---
 
-## 验证安装
+## Verifying Installation
 
-重启 Claude Code，观察以下行为：
+Restart Claude Code and observe the following behavior:
 
-**auto 模式：**
-- 执行需要授权的操作 → 自动允许，无弹窗
+**auto mode:**
+- Performing an action requiring authorization → Auto-approved, no dialog
 
-**popup 模式：**
-- 执行操作时（VSCode 后台）→ 弹出中文授权窗口
-- 执行操作时（VSCode 前台）→ 终端显示原生权限提示
-- Claude 提问时（后台）→ "🤖 Claude 正在问你问题"通知
-- Claude 提问时（前台）→ 终端直接显示问题
+**popup mode:**
+- Performing an action (VSCode in background) → Permission dialog appears
+- Performing an action (VSCode in foreground) → Terminal shows native permission prompt
+- Claude asks a question (background) → "🤖 Claude is asking you a question" notification
+- Claude asks a question (foreground) → Question appears directly in terminal
 
-**通用（两种模式）：**
-- 回复完成时（后台）→ 绿色通知条 "✅ 回复已完成" 3 秒自动消失
-- 回复完成时（前台）→ 无通知
+**Both modes:**
+- Response complete (background) → Green toast "✅ Response complete" auto-dismiss in 3 seconds
+- Response complete (foreground) → No notification
 
 ---
 
-## 卸载
+## Uninstall
 
 ```bash
-# 1. 从 settings.json 中删除 hooks 配置
-# 2. 删除脚本和配置文件
+# 1. Remove hooks config from settings.json
+# 2. Delete script and config files
 rm ~/.claude/hooks/notify.py
 rm ~/.claude/hooks/config.json
 ```
 
 ---
 
-## 故障排查
+## Troubleshooting
 
 ```bash
-# 查看错误日志
+# View error log
 cat ~/.claude/hooks/notify_error.log
 ```
 
-常见问题：
+Common issues:
 
-| 问题 | 原因 | 解决 |
-|------|------|------|
-| 弹窗不出现 | hooks 配置错误 | 检查 settings.json 中 hooks 格式 |
-| 弹窗不出现 | 当前为 auto 模式 | 修改 config.json 中 mode 为 "popup" |
-| 弹窗闪一下就消失 | VSCode 在前台 | 切换到其他窗口，弹窗会保留 |
-| 中文乱码 | 编码不匹配 | 确保 Python/终端使用 UTF-8 |
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Dialog not appearing | Hooks config is wrong | Check hooks format in settings.json |
+| Dialog not appearing | Currently in auto mode | Change mode to "popup" in config.json |
+| Dialog flashes and disappears | VSCode is in foreground | Switch to another window — dialog will persist |
+| Chinese text garbled | Encoding mismatch | Ensure Python/terminal use UTF-8 |
