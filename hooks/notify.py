@@ -215,9 +215,17 @@ def _gui_permission_popup(data, tool_name):
 # PermissionRequest — 旧版 hook 事件（部分工具触发）
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _should_skip(tool_name):
+    """返回 True 表示此工具不拦截，让 Claude Code 使用默认行为。"""
+    return tool_name == "AskUserQuestion"
+
+
 def show_permission_dialog(data):
     mode = _load_config()
     tool_name = _get_tool_name(data)
+
+    if _should_skip(tool_name):
+        return None  # 透传，不拦截
 
     if mode == "popup":
         allowed = _gui_permission_popup(data, tool_name)
@@ -239,6 +247,9 @@ def show_permission_dialog(data):
 def show_pre_tool_use(data):
     mode = _load_config()
     tool_name = _get_tool_name(data)
+
+    if _should_skip(tool_name):
+        return None  # 透传，不拦截
 
     if mode == "popup":
         allowed = _gui_permission_popup(data, tool_name)
@@ -336,6 +347,9 @@ def main():
 
         mode, handler = entry
         result = handler(data)
+
+        if result is None:
+            return  # 透传，不输出决策，Claude Code 走默认行为
 
         if mode == "decision":
             output = {
