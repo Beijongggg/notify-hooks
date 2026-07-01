@@ -75,43 +75,89 @@ C_SUCCESS = "#059669"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VS Code 前台检测
+# 宿主前台检测 — 通用版本，不限 VS Code
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _is_vscode_foreground():
-    """检测 VS Code / Code Insiders 是否为前台窗口（仅 Windows）。"""
+def _get_ancestor_pids():
+    """获取当前进程的所有祖先 PID（Windows，向上最多遍历 10 层）。"""
+    if sys.platform != "win32":
+        return set()
+    try:
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.windll.kernel32
+
+        TH32CS_SNAPPROCESS = 0x00000002
+        snapshot = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        if snapshot == -1:
+            return set()
+
+        try:
+            class PROCESSENTRY32W(ctypes.Structure):
+                _fields_ = [
+                    ("dwSize",              wintypes.DWORD),
+                    ("cntUsage",            wintypes.DWORD),
+                    ("th32ProcessID",       wintypes.DWORD),
+                    ("th32DefaultHeapID",   ctypes.POINTER(ctypes.c_ulong)),
+                    ("th32ModuleID",        wintypes.DWORD),
+                    ("cntThreads",          wintypes.DWORD),
+                    ("th32ParentProcessID", wintypes.DWORD),
+                    ("pcPriClassBase",      wintypes.LONG),
+                    ("dwFlags",             wintypes.DWORD),
+                    ("szExeFile",           ctypes.c_wchar * 260),
+                ]
+
+            entry = PROCESSENTRY32W()
+            entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+
+            # 构建 PID → 父 PID 映射
+            parent_of = {}
+            if kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
+                while True:
+                    parent_of[entry.th32ProcessID] = entry.th32ParentProcessID
+                    if not kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
+                        break
+
+            # 从当前进程向上遍历
+            ancestors = set()
+            pid = os.getpid()
+            for _ in range(10):
+                ancestors.add(pid)
+                parent = parent_of.get(pid, 0)
+                if not parent or parent == 0 or parent == pid:
+                    break
+                pid = parent
+            return ancestors
+        finally:
+            kernel32.CloseHandle(snapshot)
+    except Exception:
+        return set()
+
+
+def _is_host_foreground():
+    """检测当前进程的宿主应用是否在前台。
+
+    任意终端/编辑器均适用（VS Code、Cursor、Windows Terminal、WezTerm 等），
+    不再硬编码特定进程名。
+    """
     if sys.platform != "win32":
         return False
     try:
         import ctypes
         from ctypes import wintypes
         user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
-        psapi = ctypes.windll.psapi
 
         hwnd = user32.GetForegroundWindow()
         if not hwnd:
             return False
 
-        pid = wintypes.DWORD(0)
-        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-        if not pid.value:
+        fg_pid = wintypes.DWORD(0)
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(fg_pid))
+        if not fg_pid.value:
             return False
 
-        PROCESS_QUERY_INFORMATION = 0x0400
-        PROCESS_VM_READ = 0x0010
-        h_proc = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
-                                       False, pid.value)
-        if not h_proc:
-            return False
-        try:
-            buf = ctypes.create_unicode_buffer(260)
-            size = wintypes.DWORD(260)
-            if psapi.GetModuleBaseNameW(h_proc, None, buf, size):
-                return buf.value.lower() in ("code.exe", "code-insiders.exe")
-            return False
-        finally:
-            kernel32.CloseHandle(h_proc)
+        ancestors = _get_ancestor_pids()
+        return fg_pid.value in ancestors
     except Exception:
         return False
 
@@ -337,7 +383,7 @@ def _gui_permission_popup(data, tool_name, show_always=True):
 
     # 轮询：切回前台时自动关闭弹窗并透传
     def _poll_foreground():
-        if _is_vscode_foreground():
+        if _is_host_foreground():
             result["v"] = None  # 透传信号
             root.destroy()
         else:
@@ -424,7 +470,7 @@ def _gui_ask_notification():
 
     # 轮询：切回前台时自动关闭
     def _poll():
-        if _is_vscode_foreground():
+        if _is_host_foreground():
             result["v"] = True
             root.destroy()
         else:
@@ -454,7 +500,7 @@ def show_permission_dialog(data):
 
     if mode == "popup":
         # PreToolUse 已处理弹窗交互，这里确认决策且不覆盖 PreToolUse 的缓存
-        if _is_vscode_foreground():
+        if _is_host_foreground():
             return None  # 前台 → 透传
         return {"behavior": "allow"}
 
@@ -511,14 +557,14 @@ def show_pre_tool_use(data):
 
     # ── AskUserQuestion：全局通知行为 ──
     if tool_name == "AskUserQuestion":
-        if _is_vscode_foreground():
+        if _is_host_foreground():
             return None  # 前台 → 透传，终端正常显示问题
         _gui_ask_notification()
         return None  # 透传，终端正常提问
 
     # ── 其他工具：权限检查 ──
     if mode == "popup":
-        if _is_vscode_foreground():
+        if _is_host_foreground():
             return None  # 前台 → 透传，终端显示原生权限提示
 
         # 已永久允许 → 直接放行，不弹窗
@@ -562,7 +608,7 @@ def _center(root, w, h):
 
 def show_done_dialog(data):
     """回复结束时弹轻量通知（VS Code 前台时跳过）。"""
-    if _is_vscode_foreground():
+    if _is_host_foreground():
         return {"behavior": "continue"}
 
     root = tk.Tk()
