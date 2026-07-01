@@ -274,7 +274,9 @@ def _gui_permission_popup(data, tool_name):
     desc_text.config(state="disabled")  # 只读
 
     desc_scroll = tk.Scrollbar(desc_container, orient="vertical",
-                                command=desc_text.yview)
+                                command=desc_text.yview,
+                                bg="#555555", troughcolor=_BG,
+                                activebackground="#888888", elementborderwidth=1)
     desc_text.config(yscrollcommand=desc_scroll.set)
 
     desc_text.pack(side="left", fill="both", expand=True)
