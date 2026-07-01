@@ -29,7 +29,7 @@ Response complete   → Green toast, auto-dismiss in 3 seconds
 Claude asks question → Lightweight notification reminder
 ```
 
-> ⚠️ **Auto-approves all execution tools by default.** Recommended for personal/small projects only.
+> ⚠️ **Auto-approve mode (enabled by default): automatically approves all tool executions until results are returned, no manual confirmation required.** Users should be aware of the risks and manually interrupt (`Ctrl+C`) when needed. Recommended for personal/small projects only.
 
 ---
 
