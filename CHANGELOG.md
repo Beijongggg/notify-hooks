@@ -1,5 +1,12 @@
 # 更新日志
 
+## v2.2
+
+- **恢复 AskUserQuestion**：不再拦截交互提问弹窗，确保选项询问功能正常
+- **清理无用逻辑**：移除 `_INTERACTIVE_TOOLS` 拒绝判断
+
+*2026-07-01*
+
 ## v2.1
 
 > ⚠️ **功能实现不完全** — PermissionRequest 权限钩子仅对 Write、Edit、Read 等部分工具触发，Bash 等工具不触发，popup 弹窗模式暂不能覆盖所有操作场景，v2 系列此功能不完整。
