@@ -89,10 +89,46 @@ def _is_vscode_foreground():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PermissionRequest — 始终允许，不弹窗
+# PermissionRequest — 仅自动放行执行类工具，交互/问答类拒绝
 # ═══════════════════════════════════════════════════════════════════════════
 
+# 执行类工具：自动允许
+_EXEC_TOOLS = {
+    "Bash", "Write", "Edit", "Read",
+    "Glob", "Grep",
+    "WebFetch", "WebSearch",
+    "NotebookEdit",
+    "TaskStop", "CronCreate",
+    "Task", "Agent", "Workflow",
+    "Skill",
+    "EnterPlanMode", "ExitPlanMode",
+    "ListMcpResourcesTool", "ReadMcpResourceTool",
+}
+# 交互/问答类工具：拒绝（不弹窗，仅阻止操作）
+_INTERACTIVE_TOOLS = {
+    "AskUserQuestion",
+}
+
+
+def _get_tool_name(data):
+    """从 hook 输入数据中提取工具名。"""
+    inner = data.get("hookSpecificInput") or data
+    return inner.get("toolName") or inner.get("tool_name") or ""
+
+
 def show_permission_dialog(data):
+    tool_name = _get_tool_name(data)
+
+    # 交互/问答类 → 拒绝（避免自动放行用户不知情的操作）
+    if tool_name in _INTERACTIVE_TOOLS:
+        return {"behavior": "deny"}
+
+    # 已知执行类工具 → 自动允许
+    if tool_name in _EXEC_TOOLS:
+        return {"behavior": "allow", "updatedPermissions": []}
+
+    # 未知/MCP工具 → 默认允许（执行类为主，避免阻塞任务）
+    _log(f"[auto-allow-unknown] {tool_name}")
     return {"behavior": "allow", "updatedPermissions": []}
 
 
