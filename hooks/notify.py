@@ -283,25 +283,80 @@ def _gui_permission_popup(data, tool_name):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# AskUserQuestion 通知弹窗 — 感知通知，无选项交互
+# ═══════════════════════════════════════════════════════════════════════════
+
+_NOTE_W = 320
+_NOTE_H = 80
+
+
+def _gui_ask_notification():
+    """后台时弹轻量通知"Claude 正在问你问题"，切回前台自动关闭。"""
+    result = {"v": False}
+
+    root = tk.Tk()
+    root.title("")
+    root.resizable(False, False)
+    root.overrideredirect(True)
+    root.attributes("-topmost", True)
+    root.configure(bg=_BG)
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    root.geometry(f"{_NOTE_W}x{_NOTE_H}+{(sw - _NOTE_W) // 2}+{sh - _NOTE_H - 80}")
+
+    frame = tk.Frame(root, bg=_BG, padx=16, pady=14)
+    frame.pack(fill="both", expand=True)
+
+    tk.Label(frame, text="🤖  Claude 正在问你问题",
+             font=(FONT, 12, "bold"), fg=_FG, bg=_BG, anchor="w"
+             ).pack(fill="x")
+    tk.Label(frame, text="请切回 VS Code 查看",
+             font=(FONT, 10), fg=_FG_SECONDARY, bg=_BG, anchor="w"
+             ).pack(fill="x", pady=(4, 0))
+
+    # 轮询：切回前台时自动关闭
+    def _poll():
+        if _is_vscode_foreground():
+            result["v"] = True
+            root.destroy()
+        else:
+            root.after(500, _poll)
+    root.after(500, _poll)
+
+    root.bind("<Escape>", lambda e: root.destroy())
+    root.after(30000, root.destroy)  # 最长 30s 自消
+    root.lift()
+    root.mainloop()
+    return result["v"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # PermissionRequest — 旧版 hook 事件（部分工具触发）
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _should_skip(tool_name):
+def _should_skip(tool_name, mode=None):
     """返回 True 表示此工具不拦截，让 Claude Code 使用默认行为。"""
-    return tool_name == "AskUserQuestion"
+    if tool_name == "AskUserQuestion":
+        return mode != "popup"  # popup 模式下拦截做弹窗
+    return False
 
 
 def show_permission_dialog(data):
     mode = _load_config()
     tool_name = _get_tool_name(data)
 
-    if _should_skip(tool_name):
+    if _should_skip(tool_name, mode):
         return None  # 透传，不拦截
 
     if mode == "popup":
-        # 前台 → 透传，终端显示原生权限提示
         if _is_vscode_foreground():
-            return None
+            return None  # 前台 → 透传，终端显示原生权限提示
+
+        # AskUserQuestion 不由 PermissionRequest 处理（PreToolUse 已接管）
+        # 直接放行，避免与 PreToolUse 双重弹窗
+        if tool_name == "AskUserQuestion":
+            return {"behavior": "allow", "updatedPermissions": []}
+
         # 后台 → 弹出中文 GUI 授权
         allowed = _gui_permission_popup(data, tool_name)
         if allowed is None:
@@ -322,22 +377,27 @@ def show_permission_dialog(data):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def show_pre_tool_use(data):
+    """PreToolUse — 仅用于拦截 AskUserQuestion（其他工具由 PermissionRequest 处理）。"""
     mode = _load_config()
     tool_name = _get_tool_name(data)
 
-    if _should_skip(tool_name):
-        return None  # 透传，不拦截
+    # 非 AskUserQuestion → 透传，由 PermissionRequest 处理
+    if tool_name != "AskUserQuestion":
+        return None
+
+    # AskUserQuestion
+    if _should_skip(tool_name, mode):
+        return None  # auto 模式或不拦截
 
     if mode == "popup":
         if _is_vscode_foreground():
             return None  # 前台 → 透传
-        allowed = _gui_permission_popup(data, tool_name)
-        if allowed is None:
-            return None  # 切回前台 → 透传
-        decision = "allow" if allowed else "deny"
-        return {"permissionDecision": decision, "updatedInput": {}}
 
-    # auto 模式
+        # 轻量通知 "Claude 正在问你问题，请切回 VS Code"
+        _gui_ask_notification()
+        return None  # 透传，终端正常提问
+
+    # auto 模式（理论上走不到这里，_should_skip 已拦截）
     return {"permissionDecision": "allow", "updatedInput": {}}
 
 

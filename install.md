@@ -62,6 +62,17 @@ code .claude/settings.json
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ~/.claude/hooks/notify.py"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
@@ -89,7 +100,8 @@ code .claude/settings.json
 修改后**立即生效**。
 
 **💡 popup 模式的适用场景**：当你让 Claude 在后台跑任务时，不用一直盯着终端。
-授权弹窗会浮在桌面上，远远看一眼就知道正在做什么；Stop 通知条会告诉你任务已完成。
+授权弹窗会浮在桌面上，远远看一眼就知道正在做什么；Stop 通知条会告诉你任务已完成；
+Claude 提问时会弹出提示"🤖 Claude 正在问你问题"，切回前台即可回答。
 适合摸鱼、离开座位、多任务处理时使用。
 
 ## 验证安装
@@ -100,7 +112,10 @@ code .claude/settings.json
 - 执行需要授权的操作时 → 自动允许，无弹窗
 
 **popup 模式：**
-- 执行需要授权的操作时 → 弹出授权窗口，手动点"允许"或"拒绝"
+- 执行需要授权的操作时（VS Code 后台）→ 弹出授权窗口，手动点"允许"或"拒绝"
+- 执行需要授权的操作时（VS Code 前台）→ 终端显示原生权限提示
+- Claude 提问时（VS Code 后台）→ 弹出通知"🤖 Claude 正在问你问题"，切回前台后在终端回答
+- Claude 提问时（VS Code 前台）→ 终端直接显示问题
 
 **通用（两种模式）：**
 - Claude 完成回复时（VS Code 后台）→ 绿色通知条"✅ 回复已完成"3 秒自动消失

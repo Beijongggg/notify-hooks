@@ -1,5 +1,20 @@
 # 更新日志
 
+## v2.5
+
+- **AskUserQuestion 通知弹窗**：popup 模式下，VS Code 后台时弹出"🤖 Claude 正在问你问题，请切回 VS Code 查看"轻量提示，切回前台自动关闭，终端正常提问
+- **PreToolUse 钩子**：添加 `PreToolUse` 事件支持，settings.json 中配置，专门用于拦截 AskUserQuestion（不与其他工具冲突）
+- **`_should_skip` 改进**：支持按模式判断，auto 模式跳过 AskUserQuestion，popup 模式拦截
+
+*2026-07-01*
+
+## v2.4
+
+- **弹窗自动关闭**：弹窗模式下，后台切回前台时自动关闭审批弹窗，透传给终端
+- **弹窗置顶修复**：`attributes("-topmost", True)` 确保弹窗始终在最前
+
+*2026-07-01*
+
 ## v2.3
 
 - **Popup 弹窗模式完成**：VS Code 后台时弹出中文置顶授权窗口（含工具名+操作详情）；前台时透传，终端显示原生权限提示
