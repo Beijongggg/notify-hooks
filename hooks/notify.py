@@ -129,7 +129,7 @@ _EXEC_TOOLS = {
     "Task", "Agent", "Workflow",
     "Skill",
     "EnterPlanMode", "ExitPlanMode",
-    "ListMcpResourcesTool", "ReadMcpResourceTool",
+    "ListMcpResourcesTool", "ReadMcpResourceTool", "ReadMcpResourceDirTool",
 }
 _INTERACTIVE_TOOLS = set()  # 预留
 
@@ -251,7 +251,13 @@ def _can_always_allow(data):
             if stype in ("addRules", "addGlobalPermission", "persistPermission"):
                 return True
             if "rules" in s or "globalPermission" in s:
-                return True
+                # 验证 rules/globalPermission 非空才有意义
+                rules_val = s.get("rules")
+                gp_val = s.get("globalPermission")
+                if isinstance(rules_val, list) and len(rules_val) > 0:
+                    return True
+                if isinstance(gp_val, str) and gp_val:
+                    return True
         # 没有可持久化的建议 → 只有通过与不通过
         return False
     return True  # 其他格式 → 默认支持
@@ -425,7 +431,8 @@ def _gui_ask_notification():
     root.bind("<Escape>", lambda e: root.destroy())
     root.after(30000, root.destroy)  # 最长 30s 自消
     root.lift()
-    root.mainloop()
+    root.grab_set()
+    root.wait_window()
     return result["v"]
 
 
@@ -465,11 +472,7 @@ def show_permission_dialog(data):
         if decision == "always":
             return {"behavior": "allow", "updatedPermissions": [tool_name]}
         if decision == "allow":
-            if show_always:
-                return {"behavior": "allow", "updatedPermissions": []}
-            else:
-                # 不支持始终允许的权限 → 只返回 behavior，不传 updatedPermissions
-                return {"behavior": "allow"}
+            return {"behavior": "allow"}
         return {"behavior": "deny"}
 
     # auto 模式
@@ -513,6 +516,8 @@ def show_pre_tool_use(data):
         return {"permissionDecision": "deny", "updatedInput": {}}
 
     # auto 模式：自动放行
+    if tool_name not in _EXEC_TOOLS:
+        _log(f"[auto-allow-unknown] {tool_name}")
     return {"permissionDecision": "allow", "updatedInput": {}}
 
 
