@@ -358,19 +358,22 @@ def _gui_permission_popup(data, tool_name, show_always=True):
 
     tk.Button(btn_frame, text="✅ 允许（一次）", command=allow,
               font=(FONT, 11, "bold"), bg=_BTN_ALLOW_BG,
-              fg="white", padx=22, pady=8, relief="flat",
-              cursor="hand2", activebackground=_BTN_ALLOW_HOVER
-              ).pack(side="right", padx=(6, 0))
+              fg="white", padx=26, pady=8, relief="flat",
+              cursor="hand2", activebackground=_BTN_ALLOW_HOVER,
+              width=12
+              ).pack(side="right", padx=(4, 0))
     if show_always:
         tk.Button(btn_frame, text="🔁 始终允许", command=always_allow,
-                  font=(FONT, 11), bg=_BTN_ALWAYS_BG,
-                  fg="white", padx=22, pady=8, relief="flat",
-                  cursor="hand2", activebackground=_BTN_ALWAYS_HOVER
-                  ).pack(side="right", padx=(6, 0))
+                  font=(FONT, 11, "bold"), bg=_BTN_ALWAYS_BG,
+                  fg="white", padx=26, pady=8, relief="flat",
+                  cursor="hand2", activebackground=_BTN_ALWAYS_HOVER,
+                  width=12
+                  ).pack(side="right", padx=(4, 0))
     tk.Button(btn_frame, text="❌ 拒绝", command=deny,
-              font=(FONT, 11), bg=_BTN_DENY_BG,
-              fg="white", padx=22, pady=8, relief="flat",
-              cursor="hand2", activebackground=_BTN_DENY_HOVER
+              font=(FONT, 11, "bold"), bg=_BTN_DENY_BG,
+              fg="white", padx=26, pady=8, relief="flat",
+              cursor="hand2", activebackground=_BTN_DENY_HOVER,
+              width=12
               ).pack(side="right")
 
     root.protocol("WM_DELETE_WINDOW", deny)
@@ -440,42 +443,22 @@ def _gui_ask_notification():
 # PermissionRequest — 旧版 hook 事件（部分工具触发）
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _should_skip(tool_name, mode=None):
-    """返回 True 表示此工具不拦截，让 Claude Code 使用默认行为。"""
-    # AskUserQuestion：任何模式都不跳过，由 PreToolUse 处理前台透传/后台通知
-    if tool_name == "AskUserQuestion":
-        return False
-    return False
-
-
 def show_permission_dialog(data):
+    """PermissionRequest — 旧版 hook 事件。
+
+    弹出模式下：静默允许（不弹窗），让 PreToolUse 处理弹窗交互
+    auto 模式下：自动放行（兼容旧版 Claude Code 只触发 PermissionRequest 的场景）
+    """
     mode = _load_config()
     tool_name = _get_tool_name(data)
 
-    if _should_skip(tool_name, mode):
-        return None  # 透传，不拦截
-
     if mode == "popup":
+        # PreToolUse 已处理弹窗交互，这里确认决策且不覆盖 PreToolUse 的缓存
         if _is_vscode_foreground():
-            return None  # 前台 → 透传，终端显示原生权限提示
+            return None  # 前台 → 透传
+        return {"behavior": "allow"}
 
-        # AskUserQuestion 不由 PermissionRequest 处理（PreToolUse 已接管）
-        # 直接放行，避免与 PreToolUse 双重弹窗
-        if tool_name == "AskUserQuestion":
-            return {"behavior": "allow", "updatedPermissions": []}
-
-        # 后台 → 弹出中文 GUI 授权
-        show_always = _can_always_allow(data)
-        decision = _gui_permission_popup(data, tool_name, show_always)
-        if decision is None:
-            return None  # 切回前台 → 透传
-        if decision == "always":
-            return {"behavior": "allow", "updatedPermissions": [tool_name]}
-        if decision == "allow":
-            return {"behavior": "allow"}
-        return {"behavior": "deny"}
-
-    # auto 模式
+    # auto 模式：自动放行
     if tool_name in _EXEC_TOOLS:
         return {"behavior": "allow", "updatedPermissions": []}
     _log(f"[auto-allow-unknown] {tool_name}")
@@ -485,6 +468,41 @@ def show_permission_dialog(data):
 # ═══════════════════════════════════════════════════════════════════════════
 # PreToolUse — 新版 hook 事件（所有工具触发，含 Bash）
 # ═══════════════════════════════════════════════════════════════════════════
+
+_SETTINGS_PATH = os.path.expanduser("~/.claude/settings.json")
+
+
+def _is_permanently_allowed(tool_name):
+    """检查工具是否已在 settings.json 的永久允许列表中。"""
+    try:
+        if not os.path.exists(_SETTINGS_PATH):
+            return False
+        with open(_SETTINGS_PATH, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        return tool_name in config.get("permissions", {}).get("allow", [])
+    except Exception:
+        return False
+
+
+def _add_to_permanent_allow(tool_name):
+    """将工具名永久加入 settings.json 的 permissions.allow 列表。"""
+    try:
+        if not os.path.exists(_SETTINGS_PATH):
+            _log(f"[add-perm] settings.json not found")
+            return
+        with open(_SETTINGS_PATH, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        allow = config.setdefault("permissions", {}).setdefault("allow", [])
+        if tool_name not in allow:
+            allow.append(tool_name)
+            with open(_SETTINGS_PATH, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+            _log(f"[add-perm] {tool_name} added to permanent allow")
+        else:
+            _log(f"[add-perm] {tool_name} already in permanent allow")
+    except Exception as exc:
+        _log(f"[add-perm-error] {exc}")
+
 
 def show_pre_tool_use(data):
     """PreToolUse — 新版 hook 事件（所有工具触发）。"""
@@ -503,12 +521,17 @@ def show_pre_tool_use(data):
         if _is_vscode_foreground():
             return None  # 前台 → 透传，终端显示原生权限提示
 
+        # 已永久允许 → 直接放行，不弹窗
+        if _is_permanently_allowed(tool_name):
+            return {"permissionDecision": "allow", "updatedInput": {}}
+
         # 后台 → 弹出中文 GUI 授权
         show_always = _can_always_allow(data)
         decision = _gui_permission_popup(data, tool_name, show_always)
         if decision is None:
             return None  # 切回前台 → 透传
         if decision == "always":
+            _add_to_permanent_allow(tool_name)
             return {"permissionDecision": "allow", "updatedInput": {},
                     "updatedPermissions": [tool_name]}
         if decision == "allow":
@@ -629,9 +652,15 @@ def main():
                 }
         elif mode == "permission":
             output = {
-                "hookSpecificOutput": result,
+                "hookSpecificOutput": {"updatedInput": result.get("updatedInput", {})},
                 "systemMessage": "",
             }
+            pd = result.get("permissionDecision")
+            if pd:
+                output["permissionDecision"] = pd
+            up = result.get("updatedPermissions")
+            if up:
+                output["updatedPermissions"] = up
         else:
             return
 
