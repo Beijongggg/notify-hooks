@@ -11,6 +11,7 @@ Claude Code Hooks — v2
 import os
 import sys
 import json
+import time
 import traceback
 import threading
 import tkinter as tk
