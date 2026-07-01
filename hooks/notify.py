@@ -402,31 +402,31 @@ def _gui_permission_popup(data, tool_name, show_always=True):
         result["v"] = "deny"
         root.destroy()
 
-    # ── grid 布局保证按钮等宽；纯文字避免 emoji 在 tkinter 下渲染错位 ──
-    btn_kw = dict(font=(FONT, 11, "bold"), padx=12, pady=8, relief="flat",
-                  cursor="hand2", anchor="center")
+    # ── grid 等宽列；sticky="ew" 只横向撑满，纵向自然居中避免文字偏下 ──
+    btn_kw = dict(font=(FONT, 11, "bold"), padx=12, pady=4, relief="flat",
+                  cursor="hand2")
     if show_always:
         btn_frame.columnconfigure(0, weight=1, uniform="btn")
         btn_frame.columnconfigure(1, weight=1, uniform="btn")
         btn_frame.columnconfigure(2, weight=1, uniform="btn")
         tk.Button(btn_frame, text="拒绝", command=deny,
                   bg=_BTN_DENY_BG, fg="white", activebackground=_BTN_DENY_HOVER,
-                  **btn_kw).grid(row=0, column=0, sticky="nsew", padx=(0, 3))
+                  **btn_kw).grid(row=0, column=0, sticky="ew", padx=(0, 3))
         tk.Button(btn_frame, text="始终允许", command=always_allow,
                   bg=_BTN_ALWAYS_BG, fg="white", activebackground=_BTN_ALWAYS_HOVER,
-                  **btn_kw).grid(row=0, column=1, sticky="nsew", padx=3)
+                  **btn_kw).grid(row=0, column=1, sticky="ew", padx=3)
         tk.Button(btn_frame, text="允许（一次）", command=allow,
                   bg=_BTN_ALLOW_BG, fg="white", activebackground=_BTN_ALLOW_HOVER,
-                  **btn_kw).grid(row=0, column=2, sticky="nsew", padx=(3, 0))
+                  **btn_kw).grid(row=0, column=2, sticky="ew", padx=(3, 0))
     else:
         btn_frame.columnconfigure(0, weight=1, uniform="btn")
         btn_frame.columnconfigure(1, weight=1, uniform="btn")
         tk.Button(btn_frame, text="拒绝", command=deny,
                   bg=_BTN_DENY_BG, fg="white", activebackground=_BTN_DENY_HOVER,
-                  **btn_kw).grid(row=0, column=0, sticky="nsew", padx=(0, 3))
+                  **btn_kw).grid(row=0, column=0, sticky="ew", padx=(0, 3))
         tk.Button(btn_frame, text="允许（一次）", command=allow,
                   bg=_BTN_ALLOW_BG, fg="white", activebackground=_BTN_ALLOW_HOVER,
-                  **btn_kw).grid(row=0, column=1, sticky="nsew", padx=(3, 0))
+                  **btn_kw).grid(row=0, column=1, sticky="ew", padx=(3, 0))
 
     root.protocol("WM_DELETE_WINDOW", deny)
     root.bind("<Escape>", lambda e: deny())
