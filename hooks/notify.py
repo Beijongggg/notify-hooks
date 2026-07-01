@@ -660,13 +660,12 @@ def _make_done_window():
     root.bind("<Escape>", lambda e: close())
     root.bind("<Return>", lambda e: close())
     root.bind("<Button-1>", lambda e: close())
-    root.protocol("WM_DELETE_WINDOW", close)
 
     return root, close
 
 
 def _run_done_loop(root, close):
-    """事件循环：最长 _DONE_STAY_S + 5 秒，前台检测每 _DONE_POLL_MS 轮询。"""
+    """事件循环：mainloop 阻塞直到 close() 触发或超时。"""
     def poll():
         try:
             if not root.winfo_exists():
@@ -683,13 +682,9 @@ def _run_done_loop(root, close):
     root.lift()
     root.focus_force()
 
-    deadline = time.monotonic() + _DONE_STAY_S + 5
-    while time.monotonic() < deadline:
-        try:
-            root.update()
-        except tk.TclError:
-            break
-        time.sleep(0.05)
+    # 安全网：mainloop 正常由 after 回调关闭，异常时 125s 后强制退出
+    root.after((_DONE_STAY_S + 5) * 1000, close)
+    root.mainloop()
 
     try:
         root.destroy()
@@ -721,11 +716,18 @@ def show_done_dialog(data):
         return None
 
     # ── 创建窗口，成功后才写防抖文件 ──
-    root, close = _make_done_window()
+    try:
+        root, close = _make_done_window()
+    except Exception as e:
+        _log(f"[stop-notify] window creation failed: {e}")
+        return None
+
     try:
         _LAST_NOTIFY.write_text(str(now))
     except Exception:
         pass
+
+    _log("[stop-notify] showing")
 
     _run_done_loop(root, close)
     return None
