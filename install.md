@@ -1,75 +1,50 @@
 # 安装指南
 
-> ⚠️ **风险提示**：本工具自动放行所有执行类工具，不会弹出授权确认弹窗。仅建议在个人/小型项目中使用，生产环境或涉及敏感操作请勿使用。
-
 ## 前置要求
 
 - Claude Code（已安装并可用）
 - Python 3.8+
-- （Windows 可选）VS Code / Code Insiders — 用于前台检测功能
+- （Windows）VS Code / Code Insiders — 用于前台检测功能
+
+---
 
 ## 安装步骤
 
 ### 1. 复制脚本
 
 ```bash
-# 确保 hooks 目录存在
 mkdir -p ~/.claude/hooks
-
-# 复制 notify.py
 cp hooks/notify.py ~/.claude/hooks/notify.py
 ```
 
 ### 2. （可选）复制配置文件
 
 ```bash
-# config.json 与 notify.py 在同一目录
 cp config.example.json ~/.claude/hooks/config.json
 ```
 
-如果不复制配置文件，默认以 **`auto`（自动放行）** 模式运行。
+不复制配置文件则默认以 **`auto`（自动放行）** 模式运行，所有工具自动放行无弹窗。
 
 ### 3. 配置 Claude Code
 
-编辑 Claude Code 的 settings.json 文件：
-
-**VS Code 用户：**
-```
-Ctrl+Shift+P → "Claude Code: Open Settings (JSON)"
-```
-
-**或直接编辑：**
-```bash
-# 用户级设置
-code ~/.claude/settings.json
-# 或项目级设置
-code .claude/settings.json
-```
-
-添加 hooks 配置：
+编辑 Claude Code 的 settings.json，添加以下 hooks 配置：
 
 ```json
 {
   "hooks": {
-    "PermissionRequest": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python ~/.claude/hooks/notify.py"
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "",
         "hooks": [
-          {
-            "type": "command",
-            "command": "python ~/.claude/hooks/notify.py"
-          }
+          { "type": "command", "command": "python ~/.claude/hooks/notify.py" }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "python ~/.claude/hooks/notify.py" }
         ]
       }
     ],
@@ -77,10 +52,7 @@ code .claude/settings.json
       {
         "matcher": "",
         "hooks": [
-          {
-            "type": "command",
-            "command": "python ~/.claude/hooks/notify.py"
-          }
+          { "type": "command", "command": "python ~/.claude/hooks/notify.py" }
         ]
       }
     ]
@@ -88,38 +60,44 @@ code .claude/settings.json
 }
 ```
 
-## 模式切换（v2）
+配置文件位置：
+- **用户级设置**：`~/.claude/settings.json`
+- **项目级设置**：`.claude/settings.json`
+- **VS Code 中打开**：`Ctrl+Shift+P` → `Claude Code: Open Settings (JSON)`
+
+---
+
+## 模式切换
 
 编辑 `~/.claude/hooks/config.json`，修改 `mode` 字段：
 
 ```json
-{ "mode": "auto" }     # 自动放行（默认，不弹窗）
-{ "mode": "popup" }    # 弹窗授权（每步手动确认）
+{ "mode": "auto" }     // 自动放行（默认，不弹窗）
+{ "mode": "popup" }    // 弹窗授权，每步手动确认
 ```
 
-修改后**立即生效**。
+修改后**立即生效**，无需重启 Claude Code。
 
-**💡 popup 模式的适用场景**：当你让 Claude 在后台跑任务时，不用一直盯着终端。
-授权弹窗会浮在桌面上，远远看一眼就知道正在做什么；Stop 通知条会告诉你任务已完成；
-Claude 提问时会弹出提示"🤖 Claude 正在问你问题"，切回前台即可回答。
-适合摸鱼、离开座位、多任务处理时使用。
+---
 
 ## 验证安装
 
 重启 Claude Code，观察以下行为：
 
 **auto 模式：**
-- 执行需要授权的操作时 → 自动允许，无弹窗
+- 执行需要授权的操作 → 自动允许，无弹窗
 
 **popup 模式：**
-- 执行需要授权的操作时（VS Code 后台）→ 弹出授权窗口，手动点"允许"或"拒绝"
-- 执行需要授权的操作时（VS Code 前台）→ 终端显示原生权限提示
-- Claude 提问时（VS Code 后台）→ 弹出通知"🤖 Claude 正在问你问题"，切回前台后在终端回答
-- Claude 提问时（VS Code 前台）→ 终端直接显示问题
+- 执行操作时（VSCode 后台）→ 弹出中文授权窗口
+- 执行操作时（VSCode 前台）→ 终端显示原生权限提示
+- Claude 提问时（后台）→ "🤖 Claude 正在问你问题"通知
+- Claude 提问时（前台）→ 终端直接显示问题
 
 **通用（两种模式）：**
-- Claude 完成回复时（VS Code 后台）→ 绿色通知条"✅ 回复已完成"3 秒自动消失
-- Claude 完成回复时（VS Code 前台）→ 无通知
+- 回复完成时（后台）→ 绿色通知条 "✅ 回复已完成" 3 秒自动消失
+- 回复完成时（前台）→ 无通知
+
+---
 
 ## 卸载
 
@@ -130,10 +108,20 @@ rm ~/.claude/hooks/notify.py
 rm ~/.claude/hooks/config.json
 ```
 
+---
+
 ## 故障排查
 
-如遇到问题，查看错误日志：
-
 ```bash
+# 查看错误日志
 cat ~/.claude/hooks/notify_error.log
 ```
+
+常见问题：
+
+| 问题 | 原因 | 解决 |
+|------|------|------|
+| 弹窗不出现 | hooks 配置错误 | 检查 settings.json 中 hooks 格式 |
+| 弹窗不出现 | 当前为 auto 模式 | 修改 config.json 中 mode 为 "popup" |
+| 弹窗闪一下就消失 | VSCode 在前台 | 切换到其他窗口，弹窗会保留 |
+| 中文乱码 | 编码不匹配 | 确保 Python/终端使用 UTF-8 |
