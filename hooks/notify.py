@@ -291,14 +291,10 @@ def show_permission_dialog(data):
 
     if mode == "popup":
         # 前台 → 透传，终端显示原生权限提示
-        fg = _is_vscode_foreground()
-        _log(f"[popup] tool={tool_name} foreground={fg}")
-        if fg:
+        if _is_vscode_foreground():
             return None
         # 后台 → 弹出中文 GUI 授权
-        _log(f"[popup] calling gui...")
         allowed = _gui_permission_popup(data, tool_name)
-        _log(f"[popup] gui returned allowed={allowed}")
         if allowed:
             return {"behavior": "allow", "updatedPermissions": []}
         return {"behavior": "deny"}
