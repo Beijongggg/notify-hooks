@@ -356,22 +356,25 @@ def _gui_permission_popup(data, tool_name, show_always=True):
         result["v"] = "deny"
         root.destroy()
 
-    # 等宽按钮——Label 模拟，Windows 下文字居中可靠
-    btn_defs = [("❌ 拒绝", _BTN_DENY_BG, _BTN_DENY_HOVER, deny)]
+    tk.Button(btn_frame, text="✅ 允许（一次）", command=allow,
+              font=(FONT, 11, "bold"), bg=_BTN_ALLOW_BG,
+              fg="white", padx=26, pady=8, relief="flat",
+              cursor="hand2", activebackground=_BTN_ALLOW_HOVER,
+              width=12
+              ).pack(side="right", padx=(4, 0))
     if show_always:
-        btn_defs.append(("🔁 始终允许", _BTN_ALWAYS_BG, _BTN_ALWAYS_HOVER, always_allow))
-    btn_defs.append(("✅ 允许（一次）", _BTN_ALLOW_BG, _BTN_ALLOW_HOVER, allow))
-    n_btns = len(btn_defs)
-    for i in range(n_btns):
-        btn_frame.grid_columnconfigure(i, weight=1, uniform="cbtn")
-    for ci, (text, bg, hover, cmd) in enumerate(btn_defs):
-        lbl = tk.Label(btn_frame, text=text, font=(FONT, 11, "bold"),
-                       fg="white", bg=bg, anchor="center", cursor="hand2")
-        lbl.bind("<Button-1>", lambda e: cmd())
-        lbl.bind("<Enter>", lambda e: lbl.config(bg=hover))
-        lbl.bind("<Leave>", lambda e: lbl.config(bg=bg))
-        lbl.bind("<ButtonRelease-1>", lambda e: cmd())
-        lbl.grid(row=0, column=ci, padx=(0, 4) if ci < n_btns - 1 else 0, sticky="nsew")
+        tk.Button(btn_frame, text="🔁 始终允许", command=always_allow,
+                  font=(FONT, 11, "bold"), bg=_BTN_ALWAYS_BG,
+                  fg="white", padx=26, pady=8, relief="flat",
+                  cursor="hand2", activebackground=_BTN_ALWAYS_HOVER,
+                  width=12
+                  ).pack(side="right", padx=(4, 0))
+    tk.Button(btn_frame, text="❌ 拒绝", command=deny,
+              font=(FONT, 11, "bold"), bg=_BTN_DENY_BG,
+              fg="white", padx=26, pady=8, relief="flat",
+              cursor="hand2", activebackground=_BTN_DENY_HOVER,
+              width=12
+              ).pack(side="right")
 
     root.protocol("WM_DELETE_WINDOW", deny)
     root.bind("<Escape>", lambda e: deny())
@@ -387,7 +390,7 @@ def _gui_permission_popup(data, tool_name, show_always=True):
 # ═══════════════════════════════════════════════════════════════════════════
 
 _NOTE_W = 320
-_NOTE_H = 130
+_NOTE_H = 80
 
 
 def _gui_ask_notification():
@@ -418,16 +421,6 @@ def _gui_ask_notification():
     tk.Label(frame, text="请切回 VS Code 查看",
              font=(FONT, 10), fg=_FG_SECONDARY, bg=_BG, anchor="w"
              ).pack(fill="x", pady=(4, 0))
-
-    def _dismiss():
-        result["v"] = True
-        root.destroy()
-
-    tk.Button(frame, text="知道了", command=_dismiss,
-              font=(FONT, 10, "bold"), bg=_BTN_ALLOW_BG,
-              fg="white", padx=20, pady=4, relief="flat",
-              cursor="hand2", activebackground=_BTN_ALLOW_HOVER,
-              ).pack(pady=(10, 0))
 
     # 轮询：切回前台时自动关闭
     def _poll():
