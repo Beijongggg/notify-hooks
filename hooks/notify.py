@@ -612,9 +612,8 @@ def show_pre_tool_use(data):
 # Stop — 回复完成提醒
 # ═══════════════════════════════════════════════════════════════════════════
 
-_DONE_POLL_MS = 3000         # 前台检测轮询间隔 (ms)
-_DONE_FIRST_POLL_MS = 6000  # 首次轮询延迟 (ms)，进程启动时避免误判
-_DONE_MAX_WAIT_S = 300       # 最长等 5 分钟，之后强制关闭
+_DONE_STAY_S = 120             # 最长停留 2 分钟
+_DONE_POLL_MS = 3000          # 前台检测轮询间隔 (ms)
 _DONE_DEBOUNCE_S = 10         # 10 秒内不重复弹
 _DONE_W = 320
 _DONE_H = 70
@@ -629,18 +628,16 @@ def _center(root, w, h):
 
 
 def show_done_dialog(data):
-    """回复完成通知 — 停留在屏幕上直到用户切回工作页面。
+    """回复完成通知。
 
-    行为：
-    - 通知一直显示，每 3 秒轮询前台检测
-    - 检测到切回前台 → 自动关闭
-    - 最长 5 分钟后强制关闭（防止永不消失）
-    - 点击/Escape 手动关闭
-    - 10 秒防抖：避免工具调用间反复弹出
+    - 最长停留 2 分钟（_DONE_STAY_S），点击/Escape 随时关闭
+    - 每 3 秒轮询前台检测，用户切回 VS Code 时自动消失
+    - 10 秒防抖避免工具调用间反复弹出
+    - 防抖写入在 tk 窗口创建成功后，失败时自动清理
     """
-    # ── 防抖 ──
+    # ── 防抖（使用 monotonic 免疫时钟跳变）──
     try:
-        now = time.time()
+        now = time.monotonic()
         if _LAST_NOTIFY.exists():
             last = float(_LAST_NOTIFY.read_text().strip())
             if now - last < _DONE_DEBOUNCE_S:
@@ -651,25 +648,35 @@ def show_done_dialog(data):
     if _is_host_foreground():
         return None
 
-    try:
-        _LAST_NOTIFY.write_text(str(now))
-    except Exception:
-        pass
-
+    # ── 先创建窗口，成功后才写防抖文件 ──
     root = tk.Tk()
-    root.title("")
-    root.resizable(False, False)
-    root.overrideredirect(True)
-    root.configure(bg=_DONE_BORDER)
-    _center(root, _DONE_W, _DONE_H)
+    try:
+        root.title("")
+        root.resizable(False, False)
+        root.overrideredirect(True)
+        root.configure(bg=_DONE_BORDER)
+        _center(root, _DONE_W, _DONE_H)
 
-    main = tk.Frame(root, bg=C_SUCCESS)
-    main.pack(fill="both", expand=True, padx=1, pady=1)
+        main = tk.Frame(root, bg=C_SUCCESS)
+        main.pack(fill="both", expand=True, padx=1, pady=1)
 
-    tk.Label(main,
-             text="✅ 回复已完成 — 等待你的下一步",
-             font=(FONT, 11, "bold"), fg="#ffffff", bg=C_SUCCESS
-             ).pack(expand=True)
+        tk.Label(main,
+                 text="✅ 回复已完成 — 等待你的下一步",
+                 font=(FONT, 11, "bold"), fg="#ffffff", bg=C_SUCCESS
+                 ).pack(expand=True)
+
+        # 窗口创建成功，记录防抖时间
+        try:
+            _LAST_NOTIFY.write_text(str(now))
+        except Exception:
+            pass
+    except Exception:
+        # tk 初始化失败 → 清理残留
+        try:
+            root.destroy()
+        except tk.TclError:
+            pass
+        return None
 
     closed = {"v": False}
 
@@ -686,14 +693,13 @@ def show_done_dialog(data):
     def _poll_foreground():
         if closed["v"]:
             return
-        fg = _is_host_foreground()
-        _log(f"[stop-poll] foreground={fg}")
-        if fg:
+        if _is_host_foreground():
             close()
         else:
             root.after(_DONE_POLL_MS, _poll_foreground)
 
-    root.after(_DONE_FIRST_POLL_MS, _poll_foreground)
+    root.after(_DONE_STAY_S * 1000, close)     # 最长停留 2 分钟
+    root.after(_DONE_POLL_MS, _poll_foreground)  # 每 3 秒检查前台
     root.bind("<Escape>", lambda e: close())
     root.bind("<Return>", lambda e: close())
     root.bind("<Button-1>", lambda e: close())
@@ -701,15 +707,13 @@ def show_done_dialog(data):
     root.lift()
     root.focus_force()
 
-    # 事件循环：等待前台检测或手动关闭
-    from time import monotonic as _mono, sleep as _sleep
-    deadline = _mono() + _DONE_MAX_WAIT_S
-    while not closed["v"] and _mono() < deadline:
+    deadline = time.monotonic() + _DONE_STAY_S + 5
+    while not closed["v"] and time.monotonic() < deadline:
         try:
             root.update()
         except tk.TclError:
             break
-        _sleep(0.05)
+        time.sleep(0.05)
 
     if not closed["v"]:
         try:
