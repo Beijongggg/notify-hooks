@@ -11,6 +11,7 @@ Claude Code Hooks — v2
 import os
 import sys
 import json
+import time
 import traceback
 import threading
 import tkinter as tk
@@ -180,10 +181,26 @@ _EXEC_TOOLS = {
 _INTERACTIVE_TOOLS = set()  # 预留
 
 
+def _get_inner(data):
+    """解包 hook 输入数据。
+
+    官方规范中字段在顶层（tool_name、tool_input 等），
+    hookSpecificInput 为旧版兼容保留。空对象不穿透。
+    """
+    inner = data.get("hookSpecificInput")
+    if isinstance(inner, dict) and inner:  # 非空 dict 才视为有效包装
+        return inner
+    return data
+
+
 def _get_tool_name(data):
-    """从 hook 输入数据中提取工具名。"""
-    inner = data.get("hookSpecificInput") or data
-    return inner.get("toolName") or inner.get("tool_name") or ""
+    """从 hook 输入数据中提取工具名。
+
+    优先 tool_name（官方规范 snake_case），
+    回退 toolName（旧版 camelCase 兼容）。
+    """
+    inner = _get_inner(data)
+    return inner.get("tool_name") or inner.get("toolName") or ""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -285,7 +302,7 @@ def _can_always_allow(data):
       - addRules 等可持久化的类型 → 支持始终允许
       - 仅有 addDirectories (session) 等临时类型 → 不支持
     """
-    suggestions = data.get("permission_suggestions")
+    suggestions = _get_inner(data).get("permission_suggestions")
     if suggestions is None:
         return True  # 无 suggestions → 默认支持（向后兼容）
     if isinstance(suggestions, list):
@@ -314,8 +331,8 @@ def _gui_permission_popup(data, tool_name, show_always=True):
 
     布局：固定分区，详情区可滚动。
     """
-    # 从 hookSpecificInput 中提取 tool_input（兼容不同数据格式）
-    inner = data.get("hookSpecificInput") or data
+    # 从输入数据中提取 tool_input（统一使用 _get_inner 解包）
+    inner = _get_inner(data)
     tool_input = inner.get("tool_input") or {}
     action_desc = _tool_action_desc(tool_name, tool_input)
 
@@ -624,9 +641,12 @@ def _center(root, w, h):
 
 
 def show_done_dialog(data):
-    """回复结束时弹轻量通知（VS Code 前台时跳过）。"""
+    """回复结束时弹轻量通知（VS Code 前台时跳过）。
+
+    按官方规范：Stop hook 纯通知场景不输出 JSON 决策（返回 None → exit 0 无 stdout），
+    Claude Code 正常继续。"""
     if _is_host_foreground():
-        return {"behavior": "continue"}
+        return None
 
     root = tk.Tk()
     root.title("")
@@ -658,8 +678,15 @@ def show_done_dialog(data):
     root.protocol("WM_DELETE_WINDOW", close)
     root.lift()
     root.focus_force()
-    root.mainloop()
-    return {"behavior": "continue"}
+    # 用 update 轮询替代 mainloop，避免阻塞 hook 进程 3 秒
+    deadline = time.monotonic() + (_DONE_AUTO_CLOSE_MS / 1000) + 1.0
+    while not closed["v"] and time.monotonic() < deadline:
+        try:
+            root.update()
+        except tk.TclError:
+            break
+        time.sleep(0.05)
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -699,31 +726,33 @@ def main():
         if result is None:
             return  # 透传，不输出决策，Claude Code 走默认行为
 
+        # Stop 纯通知事件：handler 始终返回 None，已在上面 return，不会到达此处
         if mode == "decision":
-            # PermissionRequest: result 是 behavior dict，直接放 hookSpecificOutput
-            # Stop 等其他 decision 事件：保留原有的 hookEventName/decision 嵌套
-            if event == "PermissionRequest":
-                output = {
-                    "hookSpecificOutput": result,
-                }
-            else:
-                output = {
-                    "hookSpecificOutput": {
-                        "hookEventName": event,
-                        "decision": result,
-                    }
-                }
-        elif mode == "permission":
+            # 官方规范：PermissionRequest → hookSpecificOutput.hookEventName + decision.behavior
             output = {
-                "hookSpecificOutput": {"updatedInput": result.get("updatedInput", {})},
-                "systemMessage": "",
+                "hookSpecificOutput": {
+                    "hookEventName": "PermissionRequest",
+                    "decision": result,
+                }
+            }
+        elif mode == "permission":
+            # 官方规范：PreToolUse → permissionDecision 在 hookSpecificOutput 内
+            hook_output = {
+                "hookEventName": "PreToolUse",
+                "updatedInput": result.get("updatedInput", {}),
             }
             pd = result.get("permissionDecision")
             if pd:
-                output["permissionDecision"] = pd
+                hook_output["permissionDecision"] = pd
+            reason = result.get("permissionDecisionReason")
+            if reason:
+                hook_output["permissionDecisionReason"] = reason
             up = result.get("updatedPermissions")
             if up:
-                output["updatedPermissions"] = up
+                hook_output["updatedPermissions"] = up
+            output = {
+                "hookSpecificOutput": hook_output,
+            }
         else:
             return
 
