@@ -1,0 +1,4 @@
+{
+  "mode": "auto",
+  "_description": "授权模式: 'auto' = 自动放行不弹窗（默认）; 'popup' = GUI弹窗授权，需手动确认"
+}
