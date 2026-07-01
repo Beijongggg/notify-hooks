@@ -119,9 +119,13 @@ def _get_ancestor_pids():
                     if not kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
                         break
 
-            # 从当前进程向上遍历
+            # 从当前进程的父进程向上遍历（不含自身，避免通知窗口抢到前台后误判）
             ancestors = set()
             pid = os.getpid()
+            parent = parent_of.get(pid, 0)
+            if not parent or parent == 0:
+                return ancestors
+            pid = parent
             for _ in range(10):
                 ancestors.add(pid)
                 parent = parent_of.get(pid, 0)
