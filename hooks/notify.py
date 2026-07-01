@@ -336,8 +336,9 @@ def _gui_ask_notification():
 
 def _should_skip(tool_name, mode=None):
     """返回 True 表示此工具不拦截，让 Claude Code 使用默认行为。"""
+    # AskUserQuestion：任何模式都不跳过，由 PreToolUse 处理前台透传/后台通知
     if tool_name == "AskUserQuestion":
-        return mode != "popup"  # popup 模式下拦截做弹窗
+        return False
     return False
 
 
@@ -378,27 +379,19 @@ def show_permission_dialog(data):
 
 def show_pre_tool_use(data):
     """PreToolUse — 仅用于拦截 AskUserQuestion（其他工具由 PermissionRequest 处理）。"""
-    mode = _load_config()
     tool_name = _get_tool_name(data)
 
     # 非 AskUserQuestion → 透传，由 PermissionRequest 处理
     if tool_name != "AskUserQuestion":
         return None
 
-    # AskUserQuestion
-    if _should_skip(tool_name, mode):
-        return None  # auto 模式或不拦截
+    # AskUserQuestion：全局行为，不依赖 mode
+    if _is_vscode_foreground():
+        return None  # 前台 → 透传，终端正常显示问题
 
-    if mode == "popup":
-        if _is_vscode_foreground():
-            return None  # 前台 → 透传
-
-        # 轻量通知 "Claude 正在问你问题，请切回 VS Code"
-        _gui_ask_notification()
-        return None  # 透传，终端正常提问
-
-    # auto 模式（理论上走不到这里，_should_skip 已拦截）
-    return {"permissionDecision": "allow", "updatedInput": {}}
+    # 后台 → 通知提醒
+    _gui_ask_notification()
+    return None  # 透传，终端正常提问
 
 
 # ═══════════════════════════════════════════════════════════════════════════

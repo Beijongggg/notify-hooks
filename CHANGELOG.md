@@ -1,5 +1,14 @@
 # 更新日志
 
+## v2.6
+
+- **全局行为规范化**：
+  - AskUserQuestion 任何模式都不跳过，后台弹通知提醒，前台透传终端
+  - 回复结束提醒不再依赖 mode 配置，全局生效
+- **代码简化**：`_should_skip` 中 AskUserQuestion 不再检查 mode；`show_pre_tool_use` 去掉 mode 分支
+
+*2026-07-01*
+
 ## v2.5
 
 - **AskUserQuestion 通知弹窗**：popup 模式下，VS Code 后台时弹出"🤖 Claude 正在问你问题，请切回 VS Code 查看"轻量提示，切回前台自动关闭，终端正常提问
@@ -48,6 +57,6 @@
 ## v1
 
 - **PermissionRequest 自动授权**：拦截授权弹窗，自动放行执行类工具（Bash、Write、Edit、Agent 等），交互类工具自动拒绝
-- **Stop 回复完成通知**：VS Code 前台时不通知，后台弹出绿色通知条 3 秒自消
+- **Stop 回复完成提醒**：VS Code 前台时不通知，后台弹出绿色通知条 3 秒自消
 
 *2026-06-30*
