@@ -232,7 +232,32 @@ def _popup_geometry(root, w, h):
     root.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
 
 
-def _gui_permission_popup(data, tool_name):
+def _can_always_allow(data):
+    """检查 permission_suggestions 是否支持始终允许。
+
+    根据 suggestions 中的 type 判断：
+      - addRules 等可持久化的类型 → 支持始终允许
+      - 仅有 addDirectories (session) 等临时类型 → 不支持
+    """
+    suggestions = data.get("permission_suggestions")
+    if suggestions is None:
+        return True  # 无 suggestions → 默认支持（向后兼容）
+    if isinstance(suggestions, list):
+        for s in suggestions:
+            if not isinstance(s, dict):
+                continue
+            stype = s.get("type", "")
+            # 可持久化的 suggestion 类型 → 支持始终允许
+            if stype in ("addRules", "addGlobalPermission", "persistPermission"):
+                return True
+            if "rules" in s or "globalPermission" in s:
+                return True
+        # 没有可持久化的建议 → 只有通过与不通过
+        return False
+    return True  # 其他格式 → 默认支持
+
+
+def _gui_permission_popup(data, tool_name, show_always=True):
     """模态弹窗 → 返回 "allow" | "always" | "deny" | None(透传)。
 
     布局：固定分区，详情区可滚动。
@@ -330,11 +355,12 @@ def _gui_permission_popup(data, tool_name):
               fg="white", padx=22, pady=8, relief="flat",
               cursor="hand2", activebackground=_BTN_ALLOW_HOVER
               ).pack(side="right", padx=(6, 0))
-    tk.Button(btn_frame, text="🔁 始终允许", command=always_allow,
-              font=(FONT, 11), bg=_BTN_ALWAYS_BG,
-              fg="white", padx=22, pady=8, relief="flat",
-              cursor="hand2", activebackground=_BTN_ALWAYS_HOVER
-              ).pack(side="right", padx=(6, 0))
+    if show_always:
+        tk.Button(btn_frame, text="🔁 始终允许", command=always_allow,
+                  font=(FONT, 11), bg=_BTN_ALWAYS_BG,
+                  fg="white", padx=22, pady=8, relief="flat",
+                  cursor="hand2", activebackground=_BTN_ALWAYS_HOVER
+                  ).pack(side="right", padx=(6, 0))
     tk.Button(btn_frame, text="❌ 拒绝", command=deny,
               font=(FONT, 11), bg=_BTN_DENY_BG,
               fg="white", padx=22, pady=8, relief="flat",
@@ -431,14 +457,19 @@ def show_permission_dialog(data):
         if tool_name == "AskUserQuestion":
             return {"behavior": "allow", "updatedPermissions": []}
 
-        # 后台 → 弹出中文 GUI 授权（三个选项：允许一次 / 始终允许 / 拒绝）
-        decision = _gui_permission_popup(data, tool_name)
+        # 后台 → 弹出中文 GUI 授权
+        show_always = _can_always_allow(data)
+        decision = _gui_permission_popup(data, tool_name, show_always)
         if decision is None:
             return None  # 切回前台 → 透传
         if decision == "always":
             return {"behavior": "allow", "updatedPermissions": [tool_name]}
         if decision == "allow":
-            return {"behavior": "allow", "updatedPermissions": []}
+            if show_always:
+                return {"behavior": "allow", "updatedPermissions": []}
+            else:
+                # 不支持始终允许的权限 → 只返回 behavior，不传 updatedPermissions
+                return {"behavior": "allow"}
         return {"behavior": "deny"}
 
     # auto 模式
@@ -453,20 +484,36 @@ def show_permission_dialog(data):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def show_pre_tool_use(data):
-    """PreToolUse — 仅用于拦截 AskUserQuestion（其他工具由 PermissionRequest 处理）。"""
+    """PreToolUse — 新版 hook 事件（所有工具触发）。"""
     tool_name = _get_tool_name(data)
+    mode = _load_config()
 
-    # 非 AskUserQuestion → 透传，由 PermissionRequest 处理
-    if tool_name != "AskUserQuestion":
-        return None
+    # ── AskUserQuestion：全局通知行为 ──
+    if tool_name == "AskUserQuestion":
+        if _is_vscode_foreground():
+            return None  # 前台 → 透传，终端正常显示问题
+        _gui_ask_notification()
+        return None  # 透传，终端正常提问
 
-    # AskUserQuestion：全局行为，不依赖 mode
-    if _is_vscode_foreground():
-        return None  # 前台 → 透传，终端正常显示问题
+    # ── 其他工具：权限检查 ──
+    if mode == "popup":
+        if _is_vscode_foreground():
+            return None  # 前台 → 透传，终端显示原生权限提示
 
-    # 后台 → 通知提醒
-    _gui_ask_notification()
-    return None  # 透传，终端正常提问
+        # 后台 → 弹出中文 GUI 授权
+        show_always = _can_always_allow(data)
+        decision = _gui_permission_popup(data, tool_name, show_always)
+        if decision is None:
+            return None  # 切回前台 → 透传
+        if decision == "always":
+            return {"permissionDecision": "allow", "updatedInput": {},
+                    "updatedPermissions": [tool_name]}
+        if decision == "allow":
+            return {"permissionDecision": "allow", "updatedInput": {}}
+        return {"permissionDecision": "deny", "updatedInput": {}}
+
+    # auto 模式：自动放行
+    return {"permissionDecision": "allow", "updatedInput": {}}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -562,12 +609,19 @@ def main():
             return  # 透传，不输出决策，Claude Code 走默认行为
 
         if mode == "decision":
-            output = {
-                "hookSpecificOutput": {
-                    "hookEventName": event,
-                    "decision": result,
+            # PermissionRequest: result 是 behavior dict，直接放 hookSpecificOutput
+            # Stop 等其他 decision 事件：保留原有的 hookEventName/decision 嵌套
+            if event == "PermissionRequest":
+                output = {
+                    "hookSpecificOutput": result,
                 }
-            }
+            else:
+                output = {
+                    "hookSpecificOutput": {
+                        "hookEventName": event,
+                        "decision": result,
+                    }
+                }
         elif mode == "permission":
             output = {
                 "hookSpecificOutput": result,
@@ -576,7 +630,7 @@ def main():
         else:
             return
 
-        print(json.dumps(output, ensure_ascii=False))
+        print(json.dumps(output, ensure_ascii=False), flush=True)
     except Exception:
         _log(f"[gui-error] {traceback.format_exc()}")
 

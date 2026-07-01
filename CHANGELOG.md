@@ -1,6 +1,21 @@
 # 更新日志
 
-## v2.7
+## v3.1
+
+- **PreToolUse 全面接管权限弹窗**：
+  - PreToolUse handler 现在处理所有工具的权限弹窗（不只是 AskUserQuestion）
+  - 修复了大部分工具实际走 PreToolUse 事件但 handler 直接透传导致弹窗"允许"无效的 bug
+- **PermissionRequest 输出格式修正**：
+  - 去掉 `hookSpecificOutput` 中多余的 `decision`/`hookEventName` 嵌套，改为 flat 结构
+  - 解决旧版 PermissionRequest 事件点允许后终端无响应的 bug
+- **permission_suggestions 检测**：
+  - 新增 `_can_always_allow()` 函数，根据 suggestions 类型判断是否支持始终允许
+  - 不支持始终允许时隐藏对应按钮，返回纯 `{"behavior": "allow"}` 不带 `updatedPermissions`
+- **输出可靠性**：`print()` 增加 `flush=True` 确保 hook 输出不被缓冲
+
+*2026-07-01*
+
+## v3.0
 
 - **弹窗新增"始终允许"按钮**：授权弹窗增加 🔁 始终允许 选项，选择后缓存该工具权限，后续自动放行
 - **完整中文工具名映射**：补全 EnterPlanMode、ExitPlanMode、TaskStop、CronCreate、MCP 工具等中文化
