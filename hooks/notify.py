@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Claude Code Hooks — v2
+Claude Code Hooks
   授权模式（通过 config.json 切换）:
     auto  (默认) — PermissionRequest / PreToolUse 自动放行，不弹窗
     popup         — 弹窗授权，手动确认（PreToolUse 覆盖所有工具含 Bash）
@@ -9,6 +9,13 @@ Claude Code Hooks — v2
 """
 
 import os
+
+# 从 VERSION 文件读取版本号
+_VERSION_FILE = __import__('pathlib').Path(__file__).resolve().parent / "VERSION"
+try:
+    __version__ = _VERSION_FILE.read_text().strip()
+except Exception:
+    __version__ = "unknown"
 import sys
 import json
 import time
