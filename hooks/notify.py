@@ -620,6 +620,7 @@ def show_pre_tool_use(data):
 
 _DONE_STAY_S = 120             # 最长停留 2 分钟
 _DONE_POLL_MS = 3000          # 前台检测轮询间隔 (ms)
+_DONE_FIRST_POLL_MS = 10000  # 首次轮询延迟 (ms)，避免进程启动时误判
 _DONE_DEBOUNCE_S = 10         # 10 秒内不重复弹
 _DONE_W = 320
 _DONE_H = 70
@@ -672,13 +673,15 @@ def _run_done_loop(root, close):
                 return
         except tk.TclError:
             return
-        if _is_host_foreground():
+        fg = _is_host_foreground()
+        _log(f"[stop-poll] foreground={fg}")
+        if fg:
             close()
         else:
             root.after(_DONE_POLL_MS, poll)
 
     root.after(_DONE_STAY_S * 1000, close)
-    root.after(_DONE_POLL_MS, poll)
+    root.after(_DONE_FIRST_POLL_MS, poll)
     root.lift()
     root.focus_force()
 
@@ -712,7 +715,9 @@ def show_done_dialog(data):
     except Exception:
         pass
 
-    if _is_host_foreground():
+    fg = _is_host_foreground()
+    _log(f"[stop-check] foreground={fg}")
+    if fg:
         return None
 
     # ── 创建窗口，成功后才写防抖文件 ──
