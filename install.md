@@ -13,8 +13,11 @@
 ### 一键安装（推荐）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/master/install.py | python
+# 锁定 commit — 防截断 + 防篡改
+curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/9b5b85edb41236becb4a1752de19c56c84e23ea1/install.py -o install.py && python install.py
 ```
+
+> **安全性说明**：`&&` 保证 curl 退出码为 0 才执行，杜绝网络截断攻击；commit sha256 锁定版本，即使 GitHub 账号被盗、恶意 force push，下载的也是你审计过的代码。
 
 自动下载 notify.py → 创建配置 → 合并 hooks → 验证完成。
 

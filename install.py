@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """notify-hooks 一键安装 — 从 GitHub 拉取并部署
 
-用法（一行命令）:
-    curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/master/install.py | python
-    或
-    python install.py          # 已下载脚本后本地执行
+用法:
+    # 标准（推荐）
+    curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/master/install.py -o install.py && python install.py
+
+    # 锁定 commit（防篡改，更安全）
+    curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/<sha>/install.py -o install.py && python install.py
+
     python install.py --check  # 仅验证安装状态
 """
 
