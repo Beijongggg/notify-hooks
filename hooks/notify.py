@@ -402,31 +402,42 @@ def _gui_permission_popup(data, tool_name, show_always=True):
         result["v"] = "deny"
         root.destroy()
 
-    # ── grid 等宽列；sticky="ew" 只横向撑满，纵向自然居中避免文字偏下 ──
-    btn_kw = dict(font=(FONT, 11, "bold"), padx=12, pady=4, relief="flat",
-                  cursor="hand2")
+    # ── Frame+Label 模拟按钮：Label pack expand 精确居中，emoji 友好 ──
+    def _make_btn(parent, text, bg, hover_bg, cmd, **grid_kw):
+        f = tk.Frame(parent, bg=bg, cursor="hand2")
+        lbl = tk.Label(f, text=text, font=(FONT, 11, "bold"),
+                       fg="white", bg=bg, anchor="center")
+        lbl.pack(expand=True, fill="both")
+        def _enter(e):
+            f.configure(bg=hover_bg)
+            lbl.configure(bg=hover_bg)
+        def _leave(e):
+            f.configure(bg=bg)
+            lbl.configure(bg=bg)
+        for w in (f, lbl):
+            w.bind("<Enter>", _enter)
+            w.bind("<Leave>", _leave)
+            w.bind("<Button-1>", lambda e: cmd())
+        f.grid(**grid_kw)
+        return f
+
     if show_always:
         btn_frame.columnconfigure(0, weight=1, uniform="btn")
         btn_frame.columnconfigure(1, weight=1, uniform="btn")
         btn_frame.columnconfigure(2, weight=1, uniform="btn")
-        tk.Button(btn_frame, text="拒绝", command=deny,
-                  bg=_BTN_DENY_BG, fg="white", activebackground=_BTN_DENY_HOVER,
-                  **btn_kw).grid(row=0, column=0, sticky="ew", padx=(0, 3))
-        tk.Button(btn_frame, text="始终允许", command=always_allow,
-                  bg=_BTN_ALWAYS_BG, fg="white", activebackground=_BTN_ALWAYS_HOVER,
-                  **btn_kw).grid(row=0, column=1, sticky="ew", padx=3)
-        tk.Button(btn_frame, text="允许（一次）", command=allow,
-                  bg=_BTN_ALLOW_BG, fg="white", activebackground=_BTN_ALLOW_HOVER,
-                  **btn_kw).grid(row=0, column=2, sticky="ew", padx=(3, 0))
+        _make_btn(btn_frame, "❌ 拒绝", _BTN_DENY_BG, _BTN_DENY_HOVER, deny,
+                  row=0, column=0, sticky="nsew", padx=(0, 3))
+        _make_btn(btn_frame, "🔁 始终允许", _BTN_ALWAYS_BG, _BTN_ALWAYS_HOVER, always_allow,
+                  row=0, column=1, sticky="nsew", padx=3)
+        _make_btn(btn_frame, "✅ 允许（一次）", _BTN_ALLOW_BG, _BTN_ALLOW_HOVER, allow,
+                  row=0, column=2, sticky="nsew", padx=(3, 0))
     else:
         btn_frame.columnconfigure(0, weight=1, uniform="btn")
         btn_frame.columnconfigure(1, weight=1, uniform="btn")
-        tk.Button(btn_frame, text="拒绝", command=deny,
-                  bg=_BTN_DENY_BG, fg="white", activebackground=_BTN_DENY_HOVER,
-                  **btn_kw).grid(row=0, column=0, sticky="ew", padx=(0, 3))
-        tk.Button(btn_frame, text="允许（一次）", command=allow,
-                  bg=_BTN_ALLOW_BG, fg="white", activebackground=_BTN_ALLOW_HOVER,
-                  **btn_kw).grid(row=0, column=1, sticky="ew", padx=(3, 0))
+        _make_btn(btn_frame, "❌ 拒绝", _BTN_DENY_BG, _BTN_DENY_HOVER, deny,
+                  row=0, column=0, sticky="nsew", padx=(0, 3))
+        _make_btn(btn_frame, "✅ 允许（一次）", _BTN_ALLOW_BG, _BTN_ALLOW_HOVER, allow,
+                  row=0, column=1, sticky="nsew", padx=(3, 0))
 
     root.protocol("WM_DELETE_WINDOW", deny)
     root.bind("<Escape>", lambda e: deny())
