@@ -3,3 +3,5 @@ __pycache__/
 notify_error.log
 notify_cache.json
 .DS_Store
+backups/
+*.bak
