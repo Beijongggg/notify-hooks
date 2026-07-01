@@ -144,13 +144,20 @@ def _get_tool_name(data):
 # 通用弹窗 GUI — 中文授权窗口
 # ═══════════════════════════════════════════════════════════════════════════
 
-_POPUP_W = 520
-_POPUP_H = 300
+_POPUP_W = 530
+_POPUP_H = 310
 _BG = "#1e1e1e"
+_BORDER = "#333333"          # 窗口边框色
+_DESC_BG = "#252525"         # 详情区背景（略亮于主背景）
 _FG = "#ffffff"
 _FG_SECONDARY = "#cccccc"
-_BTN_ALLOW_BG = "#2d8c3c"
-_BTN_DENY_BG = "#8c2d2d"
+# 按钮色 — 鲜明现代
+_BTN_ALLOW_BG      = "#2ea043"
+_BTN_ALLOW_HOVER   = "#3fb950"
+_BTN_ALWAYS_BG     = "#1f6feb"
+_BTN_ALWAYS_HOVER  = "#388bfd"
+_BTN_DENY_BG       = "#da3633"
+_BTN_DENY_HOVER    = "#f85149"
 
 # 固定分区高度
 _TITLE_H = 36       # 标题
@@ -240,55 +247,59 @@ def _gui_permission_popup(data, tool_name):
     root.resizable(False, False)
     root.overrideredirect(True)
     root.attributes("-topmost", True)
-    root.configure(bg=_BG)
+    root.configure(bg=_BORDER)  # 边框色
     _popup_geometry(root, _POPUP_W, _POPUP_H)
 
-    # 主容器
+    # 主容器 — padx/pady=1 露出 root 背景作为 1px 边框
     frame = tk.Frame(root, bg=_BG)
-    frame.pack(fill="both", expand=True, padx=_PAD_SIDE, pady=_PAD_TOP)
+    frame.pack(fill="both", expand=True, padx=1, pady=1)
 
-    # ── 标题区（固定高度） ──
+    # ── 标题区 ──
     title_lbl = tk.Label(frame, text="🔐  权限请求", font=(FONT, 14, "bold"),
                           fg=_FG, bg=_BG, anchor="w")
-    title_lbl.pack(fill="x")
-    frame.update_idletasks()
+    title_lbl.pack(fill="x", padx=_PAD_SIDE - 1, pady=(_PAD_TOP - 1, 0))
+
+    # ── 分隔线 ──
+    sep = tk.Frame(frame, bg=_BORDER, height=1)
+    sep.pack(fill="x", padx=_PAD_SIDE - 1, pady=(8, 0))
 
     # ── 工具名行（显示英文+中文） ──
     cn_name = _TOOL_CN.get(tool_name, "")
     tool_text = f"工具：{tool_name}" + (f"  —  {cn_name}" if cn_name else "")
     tool_lbl = tk.Label(frame, text=tool_text, font=(FONT, 11),
                          fg=_FG_SECONDARY, bg=_BG, anchor="w")
-    tool_lbl.pack(fill="x", pady=(6, 0))
+    tool_lbl.pack(fill="x", padx=_PAD_SIDE - 1, pady=(6, 0))
 
     # ── 详情滚动区（固定 _DESC_H） ──
-    desc_container = tk.Frame(frame, bg=_BG, height=_DESC_H)
-    desc_container.pack(fill="x", pady=(6, 0))
-    desc_container.pack_propagate(False)  # 锁定高度
+    desc_container = tk.Frame(frame, bg=_DESC_BG, height=_DESC_H)
+    desc_container.pack(fill="x", padx=_PAD_SIDE - 1, pady=(6, 0))
+    desc_container.pack_propagate(False)
 
     desc_text = tk.Text(desc_container, font=(FONT, 10),
-                         fg="#aaaaaa", bg=_BG,
-                         wrap="char", padx=6, pady=4,
+                         fg="#bbbbbb", bg=_DESC_BG,
+                         wrap="char", padx=8, pady=6,
                          relief="flat", borderwidth=0,
                          highlightthickness=0)
     desc_text.insert("1.0", action_desc)
-    desc_text.config(state="disabled")  # 只读
+    desc_text.config(state="disabled")
 
     desc_scroll = tk.Scrollbar(desc_container, orient="vertical",
                                 command=desc_text.yview,
-                                bg="#555555", troughcolor=_BG,
+                                bg="#555555", troughcolor=_DESC_BG,
                                 activebackground="#888888", elementborderwidth=1)
     desc_text.config(yscrollcommand=desc_scroll.set)
 
     desc_text.pack(side="left", fill="both", expand=True)
     desc_scroll.pack(side="right", fill="y")
 
-    # ── 提示文字（固定高度） ──
+    # ── 提示文字 ──
     tk.Label(frame, text="是否允许此操作？", font=(FONT, 10),
-             fg="#888888", bg=_BG, anchor="w").pack(fill="x", pady=(8, 0))
+             fg="#888888", bg=_BG, anchor="w"
+             ).pack(fill="x", padx=_PAD_SIDE - 1, pady=(8, 0))
 
     # ── 按钮行（固定高度） ──
     btn_frame = tk.Frame(frame, bg=_BG, height=_BTN_H)
-    btn_frame.pack(fill="x", pady=(10, 0))
+    btn_frame.pack(fill="x", padx=_PAD_SIDE - 1, pady=(8, _PAD_TOP - 1))
     btn_frame.pack_propagate(False)
 
     result = {"v": "deny"}  # "allow" | "always" | "deny" | None(透传)
@@ -316,18 +327,18 @@ def _gui_permission_popup(data, tool_name):
 
     tk.Button(btn_frame, text="✅ 允许（一次）", command=allow,
               font=(FONT, 11, "bold"), bg=_BTN_ALLOW_BG,
-              fg="white", padx=20, pady=6, relief="flat",
-              cursor="hand2", activebackground="#3aad4e"
+              fg="white", padx=22, pady=8, relief="flat",
+              cursor="hand2", activebackground=_BTN_ALLOW_HOVER
               ).pack(side="right", padx=(6, 0))
     tk.Button(btn_frame, text="🔁 始终允许", command=always_allow,
-              font=(FONT, 10), bg="#2d5c8c",
-              fg="white", padx=20, pady=6, relief="flat",
-              cursor="hand2", activebackground="#3a7dce"
+              font=(FONT, 11), bg=_BTN_ALWAYS_BG,
+              fg="white", padx=22, pady=8, relief="flat",
+              cursor="hand2", activebackground=_BTN_ALWAYS_HOVER
               ).pack(side="right", padx=(6, 0))
     tk.Button(btn_frame, text="❌ 拒绝", command=deny,
               font=(FONT, 11), bg=_BTN_DENY_BG,
-              fg="white", padx=20, pady=6, relief="flat",
-              cursor="hand2", activebackground="#b03a3a"
+              fg="white", padx=22, pady=8, relief="flat",
+              cursor="hand2", activebackground=_BTN_DENY_HOVER
               ).pack(side="right")
 
     root.protocol("WM_DELETE_WINDOW", deny)
@@ -356,13 +367,18 @@ def _gui_ask_notification():
     root.resizable(False, False)
     root.overrideredirect(True)
     root.attributes("-topmost", True)
-    root.configure(bg=_BG)
+    root.configure(bg=_BORDER)
     sw = root.winfo_screenwidth()
     sh = root.winfo_screenheight()
     root.geometry(f"{_NOTE_W}x{_NOTE_H}+{(sw - _NOTE_W) // 2}+{sh - _NOTE_H - 80}")
 
-    frame = tk.Frame(root, bg=_BG, padx=16, pady=14)
-    frame.pack(fill="both", expand=True)
+    # 边框层
+    outer = tk.Frame(root, bg=_BG)
+    outer.pack(fill="both", expand=True, padx=1, pady=1)
+
+    # 内容
+    frame = tk.Frame(outer, bg=_BG)
+    frame.pack(fill="both", expand=True, padx=16, pady=(12, 10))
 
     tk.Label(frame, text="🤖  Claude 正在问你问题",
              font=(FONT, 12, "bold"), fg=_FG, bg=_BG, anchor="w"
@@ -458,8 +474,9 @@ def show_pre_tool_use(data):
 # ═══════════════════════════════════════════════════════════════════════════
 
 _DONE_AUTO_CLOSE_MS = 3000
-_DONE_W = 280
-_DONE_H = 64
+_DONE_W = 320
+_DONE_H = 70
+_DONE_BORDER = "#047857"  # 边框色（比背景深一号）
 
 
 def _center(root, w, h):
@@ -477,11 +494,11 @@ def show_done_dialog(data):
     root.title("")
     root.resizable(False, False)
     root.overrideredirect(True)
-    root.configure(bg=C_SUCCESS)
+    root.configure(bg=_DONE_BORDER)
     _center(root, _DONE_W, _DONE_H)
 
     main = tk.Frame(root, bg=C_SUCCESS)
-    main.pack(fill="both", expand=True)
+    main.pack(fill="both", expand=True, padx=1, pady=1)
 
     tk.Label(main,
              text="✅ 回复已完成 — 等待你的下一步",
