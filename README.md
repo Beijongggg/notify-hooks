@@ -36,13 +36,11 @@ Claude 提问   → 轻量通知提醒
 ## 🚀 快速开始
 
 ```bash
-# 锁定 commit — 防截断 + 防篡改（推荐）
 curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/9b5b85edb41236becb4a1752de19c56c84e23ea1/install.py -o install.py && python install.py
 ```
 
 重启 Claude Code 即可生效。
 
-> `&&` 保证 curl 完整下载后才执行，杜绝管道截断攻击；锁定 commit sha256 防止上游被篡改。
 > 详细步骤见 [install.md](install.md)。
 
 ---
