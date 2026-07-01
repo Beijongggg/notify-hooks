@@ -1,11 +1,15 @@
 # Claude Code Notify Hooks
 
-> ⚠️ **仅适用于个人/小型项目**
->
-> 本工具默认自动放行所有执行类工具（Bash、Write、Edit、Agent 等），**不会弹出授权确认弹窗**。
-> 这意味着 Claude 的任何操作都将静默执行，请自行承担使用风险。如涉及生产环境或敏感操作，**请勿使用本工具**。
+<p align="center">
+  <strong>为 Claude Code 提供智能权限管理与回复完成通知的 hooks 工具</strong>
+  <br>
+  <code>v1.0.0</code> — 首个正式版
+</p>
 
-为 Claude Code 提供智能权限管理与回复完成通知的 hooks 工具。支持两种授权模式，可通过 `config.json` 自由切换。
+> ⚠️ **仅适用于个人/小型项目** — 默认自动放行所有执行类工具（Bash、Write、Edit、Agent 等），不会弹出授权确认弹窗。
+> 如涉及生产环境或敏感操作，请勿使用本工具。
+
+支持两种授权模式，可通过 `config.json` 自由切换。
 
 ## 功能
 
