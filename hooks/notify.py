@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+"""
+Claude Code Hooks — 仅保留：
+  PermissionRequest → 始终 allow（不弹窗）
+  Stop             → VS Code 后台时轻量完成通知，前台时跳过
+"""
+
+import sys
+import json
+import traceback
+import threading
+import tkinter as tk
+from pathlib import Path
+
+# ═══════════════════════════════════════════════════════════════════════════
+SCRIPT_DIR = Path(__file__).resolve().parent
+ERROR_LOG = SCRIPT_DIR / "notify_error.log"
+_MAX_STDIN_BYTES = 2 * 1024 * 1024
+_LOG_LOCK = threading.Lock()
+
+
+def _log(msg):
+    try:
+        with _LOG_LOCK:
+            with open(ERROR_LOG, "a", encoding="utf-8") as f:
+                f.write(f"[{__import__('datetime').datetime.now().isoformat()}] {msg}\n")
+    except Exception:
+        pass
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 平台适配
+# ═══════════════════════════════════════════════════════════════════════════
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.user32.ShowWindow(
+            ctypes.windll.kernel32.GetConsoleWindow(), 0)
+    except Exception:
+        pass
+    FONT = "Microsoft YaHei UI"
+elif sys.platform == "darwin":
+    FONT = "Helvetica Neue"
+else:
+    FONT = "Noto Sans"
+
+C_SUCCESS = "#059669"  # 绿色
+
+# ═══════════════════════════════════════════════════════════════════════════
+# VS Code 前台检测
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _is_vscode_foreground():
+    """检测 VS Code / Code Insiders 是否为前台窗口（仅 Windows）。"""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        psapi = ctypes.windll.psapi
+
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            return False
+
+        pid = wintypes.DWORD(0)
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if not pid.value:
+            return False
+
+        PROCESS_QUERY_INFORMATION = 0x0400
+        PROCESS_VM_READ = 0x0010
+        h_proc = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+                                       False, pid.value)
+        if not h_proc:
+            return False
+        try:
+            buf = ctypes.create_unicode_buffer(260)
+            size = wintypes.DWORD(260)
+            if psapi.GetModuleBaseNameW(h_proc, None, buf, size):
+                return buf.value.lower() in ("code.exe", "code-insiders.exe")
+            return False
+        finally:
+            kernel32.CloseHandle(h_proc)
+    except Exception:
+        return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PermissionRequest — 始终允许，不弹窗
+# ═══════════════════════════════════════════════════════════════════════════
+
+def show_permission_dialog(data):
+    return {"behavior": "allow", "updatedPermissions": []}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Stop — 回复完成提醒
+# ═══════════════════════════════════════════════════════════════════════════
+
+_DONE_AUTO_CLOSE_MS = 3000
+_DONE_W = 280
+_DONE_H = 64
+
+
+def _center(root, w, h):
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    root.geometry(f"{w}x{h}+{(sw - w) // 2}+{sh - h - 60}")
+
+
+def show_done_dialog(data):
+    """回复结束时弹轻量通知（VS Code 前台时跳过）。"""
+    if _is_vscode_foreground():
+        return {"behavior": "continue"}
+
+    root = tk.Tk()
+    root.title("")
+    root.resizable(False, False)
+    root.overrideredirect(True)
+    root.configure(bg=C_SUCCESS)
+
+    _center(root, _DONE_W, _DONE_H)
+
+    main = tk.Frame(root, bg=C_SUCCESS)
+    main.pack(fill="both", expand=True)
+
+    tk.Label(main,
+             text="✅ 回复已完成 — 等待你的下一步",
+             font=(FONT, 11, "bold"), fg="#ffffff", bg=C_SUCCESS
+             ).pack(expand=True)
+
+    closed = {"v": False}
+
+    def close():
+        if closed["v"]:
+            return
+        closed["v"] = True
+        root.destroy()
+
+    root.after(_DONE_AUTO_CLOSE_MS, close)
+    root.bind("<Escape>", lambda e: close())
+    root.bind("<Return>", lambda e: close())
+    root.bind("<Button-1>", lambda e: close())
+    root.protocol("WM_DELETE_WINDOW", close)
+    root.lift()
+    root.focus_force()
+    root.mainloop()
+    return {"behavior": "continue"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 事件路由
+# ═══════════════════════════════════════════════════════════════════════════
+
+HANDLERS = {
+    "PermissionRequest": ("decision", show_permission_dialog),
+    "Stop":              ("decision", show_done_dialog),
+}
+
+
+def main():
+    try:
+        raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
+        if not raw:
+            return
+        if len(raw) > _MAX_STDIN_BYTES:
+            _log(f"[stdin-rejected] input too large: {len(raw)} bytes")
+            return
+        data = json.loads(raw.decode())
+    except Exception:
+        _log(f"[stdin-error] {traceback.format_exc()}")
+        return
+
+    event = data.get("hook_event_name", "")
+    try:
+        entry = HANDLERS.get(event)
+        if entry is None:
+            _log(f"Unknown event: {event}")
+            return
+
+        mode, handler = entry
+        result = handler(data)
+
+        if mode == "decision":
+            output = {
+                "hookSpecificOutput": {
+                    "hookEventName": event,
+                    "decision": result,
+                }
+            }
+            print(json.dumps(output, ensure_ascii=False))
+    except Exception:
+        _log(f"[gui-error] {traceback.format_exc()}")
+
+
+if __name__ == "__main__":
+    main()

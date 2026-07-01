@@ -1,0 +1,6 @@
+{
+  "hooks": {
+    "PermissionRequest": "python ~/.claude/hooks/notify.py",
+    "Stop": "python ~/.claude/hooks/notify.py"
+  }
+}
