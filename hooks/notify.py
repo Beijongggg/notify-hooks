@@ -613,7 +613,8 @@ def show_pre_tool_use(data):
 # ═══════════════════════════════════════════════════════════════════════════
 
 _DONE_POLL_MS = 3000         # 前台检测轮询间隔 (ms)
-_DONE_MAX_WAIT_S = 300        # 最长等 5 分钟，之后强制关闭
+_DONE_FIRST_POLL_MS = 6000  # 首次轮询延迟 (ms)，进程启动时避免误判
+_DONE_MAX_WAIT_S = 300       # 最长等 5 分钟，之后强制关闭
 _DONE_DEBOUNCE_S = 10         # 10 秒内不重复弹
 _DONE_W = 320
 _DONE_H = 70
@@ -685,12 +686,14 @@ def show_done_dialog(data):
     def _poll_foreground():
         if closed["v"]:
             return
-        if _is_host_foreground():
+        fg = _is_host_foreground()
+        _log(f"[stop-poll] foreground={fg}")
+        if fg:
             close()
         else:
             root.after(_DONE_POLL_MS, _poll_foreground)
 
-    root.after(_DONE_POLL_MS, _poll_foreground)
+    root.after(_DONE_FIRST_POLL_MS, _poll_foreground)
     root.bind("<Escape>", lambda e: close())
     root.bind("<Return>", lambda e: close())
     root.bind("<Button-1>", lambda e: close())
