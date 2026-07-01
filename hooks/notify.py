@@ -523,7 +523,7 @@ def show_permission_dialog(data):
 
     # auto 模式：自动放行
     if tool_name in _EXEC_TOOLS:
-        return {"behavior": "allow", "updatedPermissions": []}
+        return {"behavior": "allow"}
     _log(f"[auto-allow-unknown] {tool_name}")
     return {"behavior": "allow", "updatedPermissions": []}
 
@@ -626,7 +626,7 @@ def _center(root, w, h):
 def show_done_dialog(data):
     """回复结束时弹轻量通知（VS Code 前台时跳过）。"""
     if _is_host_foreground():
-        return {"behavior": "continue"}
+        return None
 
     root = tk.Tk()
     root.title("")
@@ -659,7 +659,7 @@ def show_done_dialog(data):
     root.lift()
     root.focus_force()
     root.mainloop()
-    return {"behavior": "continue"}
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -716,7 +716,6 @@ def main():
         elif mode == "permission":
             output = {
                 "hookSpecificOutput": {},
-                "systemMessage": "",
             }
             pd = result.get("permissionDecision")
             if pd:
