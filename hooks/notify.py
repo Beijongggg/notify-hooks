@@ -152,7 +152,7 @@ _FG_SECONDARY = "#cccccc"
 _BTN_ALLOW_BG = "#2d8c3c"
 _BTN_DENY_BG = "#8c2d2d"
 
-# 工具中文名映射
+# 工具中文名映射（覆盖 _EXEC_TOOLS 全量及常用工具）
 _TOOL_CN = {
     "Bash": "执行命令",
     "Write": "写入文件",
@@ -165,8 +165,22 @@ _TOOL_CN = {
     "WebSearch": "搜索网页",
     "WebFetch": "获取网页",
     "Task": "后台任务",
+    "TaskStop": "停止任务",
     "Skill": "调用技能",
     "NotebookEdit": "编辑笔记本",
+    "CronCreate": "创建定时任务",
+    "EnterPlanMode": "进入计划模式",
+    "ExitPlanMode": "退出计划模式",
+    "ListMcpResourcesTool": "列出 MCP 资源",
+    "ReadMcpResourceTool": "读取 MCP 资源",
+    "ReadMcpResourceDirTool": "读取 MCP 资源目录",
+    "SendMessage": "发送消息",
+    "ReportFindings": "报告检查结果",
+    "ScheduleWakeup": "计划唤醒",
+    "DesignSync": "设计同步",
+    "TodoWrite": "更新任务列表",
+    "CronDelete": "删除定时任务",
+    "CronList": "列出定时任务",
 }
 
 
@@ -243,7 +257,7 @@ def _gui_permission_popup(data, tool_name):
     btn_frame = tk.Frame(frame, bg=_BG)
     btn_frame.pack(fill="x", pady=(14, 0))
 
-    result = {"v": False}
+    result = {"v": "deny"}  # "allow" | "always" | "deny" | None(透传)
 
     # 轮询：切回前台时自动关闭弹窗并透传
     def _poll_foreground():
@@ -255,21 +269,30 @@ def _gui_permission_popup(data, tool_name):
     root.after(500, _poll_foreground)
 
     def allow():
-        result["v"] = True
+        result["v"] = "allow"
+        root.destroy()
+
+    def always_allow():
+        result["v"] = "always"
         root.destroy()
 
     def deny():
-        result["v"] = False
+        result["v"] = "deny"
         root.destroy()
 
-    tk.Button(btn_frame, text="✅ 允许", command=allow,
+    tk.Button(btn_frame, text="✅ 允许（一次）", command=allow,
               font=(FONT, 11, "bold"), bg=_BTN_ALLOW_BG,
-              fg="white", padx=28, pady=6, relief="flat",
+              fg="white", padx=20, pady=6, relief="flat",
               cursor="hand2", activebackground="#3aad4e"
-              ).pack(side="right", padx=(10, 0))
+              ).pack(side="right", padx=(6, 0))
+    tk.Button(btn_frame, text="🔁 始终允许", command=always_allow,
+              font=(FONT, 10), bg="#2d5c8c",
+              fg="white", padx=20, pady=6, relief="flat",
+              cursor="hand2", activebackground="#3a7dce"
+              ).pack(side="right", padx=(6, 0))
     tk.Button(btn_frame, text="❌ 拒绝", command=deny,
               font=(FONT, 11), bg=_BTN_DENY_BG,
-              fg="white", padx=28, pady=6, relief="flat",
+              fg="white", padx=20, pady=6, relief="flat",
               cursor="hand2", activebackground="#b03a3a"
               ).pack(side="right")
 
@@ -358,11 +381,13 @@ def show_permission_dialog(data):
         if tool_name == "AskUserQuestion":
             return {"behavior": "allow", "updatedPermissions": []}
 
-        # 后台 → 弹出中文 GUI 授权
-        allowed = _gui_permission_popup(data, tool_name)
-        if allowed is None:
+        # 后台 → 弹出中文 GUI 授权（三个选项：允许一次 / 始终允许 / 拒绝）
+        decision = _gui_permission_popup(data, tool_name)
+        if decision is None:
             return None  # 切回前台 → 透传
-        if allowed:
+        if decision == "always":
+            return {"behavior": "allow", "updatedPermissions": [tool_name]}
+        if decision == "allow":
             return {"behavior": "allow", "updatedPermissions": []}
         return {"behavior": "deny"}
 
