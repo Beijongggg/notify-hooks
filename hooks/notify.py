@@ -658,7 +658,14 @@ def show_done_dialog(data):
     root.protocol("WM_DELETE_WINDOW", close)
     root.lift()
     root.focus_force()
-    root.mainloop()
+    # 用 update 轮询替代 mainloop：避免依赖 tk 事件循环的不可靠回调
+    deadline = time.monotonic() + (_DONE_AUTO_CLOSE_MS / 1000) + 1.0
+    while not closed["v"] and time.monotonic() < deadline:
+        try:
+            root.update()
+        except tk.TclError:
+            break
+        time.sleep(0.05)
     return None
 
 
