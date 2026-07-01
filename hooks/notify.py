@@ -144,13 +144,22 @@ def _get_tool_name(data):
 # 通用弹窗 GUI — 中文授权窗口
 # ═══════════════════════════════════════════════════════════════════════════
 
-_POPUP_W = 480
-_POPUP_H = 240
+_POPUP_W = 520
+_POPUP_H = 300
 _BG = "#1e1e1e"
 _FG = "#ffffff"
 _FG_SECONDARY = "#cccccc"
 _BTN_ALLOW_BG = "#2d8c3c"
 _BTN_DENY_BG = "#8c2d2d"
+
+# 固定分区高度
+_TITLE_H = 36       # 标题
+_TOOLNAME_H = 24    # 工具名行
+_DESC_H = 120       # 详情滚动区
+_PROMPT_H = 24      # "是否允许" 提示
+_BTN_H = 40         # 按钮行
+_PAD_TOP = 16
+_PAD_SIDE = 20
 
 # 工具中文名映射（覆盖 _EXEC_TOOLS 全量及常用工具）
 _TOOL_CN = {
@@ -221,7 +230,10 @@ def _popup_geometry(root, w, h):
 
 
 def _gui_permission_popup(data, tool_name):
-    """模态弹窗 → 返回 True(允许) False(拒绝) None(透传: 切回前台)。"""
+    """模态弹窗 → 返回 "allow" | "always" | "deny" | None(透传)。
+
+    布局：固定分区，详情区可滚动。
+    """
     tool_input = data.get("tool_input") or {}
     action_desc = _tool_action_desc(tool_name, tool_input)
 
@@ -233,29 +245,49 @@ def _gui_permission_popup(data, tool_name):
     root.configure(bg=_BG)
     _popup_geometry(root, _POPUP_W, _POPUP_H)
 
-    frame = tk.Frame(root, bg=_BG, padx=24, pady=20)
-    frame.pack(fill="both", expand=True)
+    # 主容器
+    frame = tk.Frame(root, bg=_BG)
+    frame.pack(fill="both", expand=True, padx=_PAD_SIDE, pady=_PAD_TOP)
 
-    # 标题
-    tk.Label(frame, text="🔐  权限请求", font=(FONT, 14, "bold"),
-             fg=_FG, bg=_BG, anchor="w").pack(fill="x")
+    # ── 标题区（固定高度） ──
+    title_lbl = tk.Label(frame, text="🔐  权限请求", font=(FONT, 14, "bold"),
+                          fg=_FG, bg=_BG, anchor="w")
+    title_lbl.pack(fill="x")
+    frame.update_idletasks()
 
-    # 工具名 + 操作描述
-    tk.Label(frame, text=f"工具：{tool_name}", font=(FONT, 11),
-             fg=_FG_SECONDARY, bg=_BG, anchor="w").pack(fill="x", pady=(8, 2))
+    # ── 工具名行（固定高度） ──
+    tool_lbl = tk.Label(frame, text=f"工具：{tool_name}", font=(FONT, 11),
+                         fg=_FG_SECONDARY, bg=_BG, anchor="w")
+    tool_lbl.pack(fill="x", pady=(6, 0))
 
-    desc_label = tk.Label(frame, text=action_desc, font=(FONT, 10),
-                          fg="#aaaaaa", bg=_BG, anchor="w", justify="left",
-                          wraplength=_POPUP_W - 48)
-    desc_label.pack(fill="x", pady=(0, 6))
+    # ── 详情滚动区（固定 _DESC_H） ──
+    desc_container = tk.Frame(frame, bg=_BG, height=_DESC_H)
+    desc_container.pack(fill="x", pady=(6, 0))
+    desc_container.pack_propagate(False)  # 锁定高度
 
-    # 提示
+    desc_text = tk.Text(desc_container, font=(FONT, 10),
+                         fg="#aaaaaa", bg=_BG,
+                         wrap="word", padx=6, pady=4,
+                         relief="flat", borderwidth=0,
+                         highlightthickness=0)
+    desc_text.insert("1.0", action_desc)
+    desc_text.config(state="disabled")  # 只读
+
+    desc_scroll = tk.Scrollbar(desc_container, orient="vertical",
+                                command=desc_text.yview)
+    desc_text.config(yscrollcommand=desc_scroll.set)
+
+    desc_text.pack(side="left", fill="both", expand=True)
+    desc_scroll.pack(side="right", fill="y")
+
+    # ── 提示文字（固定高度） ──
     tk.Label(frame, text="是否允许此操作？", font=(FONT, 10),
-             fg="#888888", bg=_BG, anchor="w").pack(fill="x")
+             fg="#888888", bg=_BG, anchor="w").pack(fill="x", pady=(8, 0))
 
-    # 按钮
-    btn_frame = tk.Frame(frame, bg=_BG)
-    btn_frame.pack(fill="x", pady=(14, 0))
+    # ── 按钮行（固定高度） ──
+    btn_frame = tk.Frame(frame, bg=_BG, height=_BTN_H)
+    btn_frame.pack(fill="x", pady=(10, 0))
+    btn_frame.pack_propagate(False)
 
     result = {"v": "deny"}  # "allow" | "always" | "deny" | None(透传)
 
