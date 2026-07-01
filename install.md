@@ -13,10 +13,10 @@
 ### 一键安装（推荐）
 
 ```bash
-python install.py
+curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/master/install.py | python
 ```
 
-自动完成：复制脚本 → 复制配置 → 合并 hooks 到 settings.json → 验证。
+自动下载 notify.py → 创建配置 → 合并 hooks → 验证完成。
 
 ### 手动安装
 

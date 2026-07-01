@@ -36,13 +36,13 @@ Claude 提问   → 轻量通知提醒
 ## 🚀 快速开始
 
 ```bash
-# 一键安装
-python install.py
+# 一行命令从 GitHub 安装
+curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/master/install.py | python
 ```
 
-安装后重启 Claude Code 即可生效。
+重启 Claude Code 即可生效。
 
-> 详细步骤与手动安装见 [install.md](install.md)。
+> 详细步骤见 [install.md](install.md)。
 
 ---
 

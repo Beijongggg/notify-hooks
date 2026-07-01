@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""notify-hooks 一键安装脚本
+"""notify-hooks 一键安装 — 从 GitHub 拉取并部署
 
-用法:
-    python install.py          # 安装
+用法（一行命令）:
+    curl -fsSL https://raw.githubusercontent.com/Beijongggg/notify-hooks/master/install.py | python
+    或
+    python install.py          # 已下载脚本后本地执行
     python install.py --check  # 仅验证安装状态
 """
 
@@ -13,29 +15,16 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 
-# Windows 强制 UTF-8 输出
-if sys.platform == "win32":
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
+# ── 常量 ──────────────────────────────────────────────────────────────────────
 
-# ASCII 兼容符号
-_CHECK = "[OK]"
-_WARN = "[!!]"
-_FAIL = "[XX]"
+GITHUB_RAW = "https://raw.githubusercontent.com/Beijongggg/notify-hooks/master"
+NOTIFY_URL = f"{GITHUB_RAW}/hooks/notify.py"
 
-# 路径常量
 HOME = Path(os.path.expanduser("~"))
 HOOKS_DIR = HOME / ".claude" / "hooks"
 TARGET_SCRIPT = HOOKS_DIR / "notify.py"
 TARGET_CONFIG = HOOKS_DIR / "config.json"
 SETTINGS_PATH = HOME / ".claude" / "settings.json"
-
-# 项目根目录（install.py 所在目录）
-PROJECT_DIR = Path(os.path.abspath(__file__)).parent
-SOURCE_SCRIPT = PROJECT_DIR / "hooks" / "notify.py"
-SOURCE_CONFIG = PROJECT_DIR / "config.example.json"
 
 # Hooks 配置模板
 HOOK_ENTRY = {
@@ -49,10 +38,26 @@ HOOKS_TEMPLATE = {
     "Stop": [HOOK_ENTRY],
 }
 
+# 默认 config.json 内容
+DEFAULT_CONFIG = """\
+{
+  "mode": "auto",
+  "_description": "授权模式: 'auto' = 自动放行不弹窗（默认）; 'popup' = GUI弹窗授权，需手动确认"
+}
+"""
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 辅助
-# ═══════════════════════════════════════════════════════════════════════════════
+# ── 输出辅助 ──────────────────────────────────────────────────────────────────
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
+_CHECK = "[OK]"
+_WARN = "[!!]"
+_FAIL = "[XX]"
+
 
 def ok(msg):
     print(f"  {_CHECK} {msg}")
@@ -66,23 +71,29 @@ def fail(msg):
     print(f"  {_FAIL} {msg}")
 
 
-def _hook_already_registered(existing_hooks, event):
-    """检查 settings.json 中某个 hook 事件是否已注册 notify.py。"""
-    entries = existing_hooks.get(event, [])
-    for entry in entries:
-        for h in entry.get("hooks", []):
-            cmd = h.get("command", "")
-            if "notify.py" in cmd:
-                return True
+# ── 网络获取 ──────────────────────────────────────────────────────────────────
+
+def fetch(url, dest):
+    """从 URL 下载文件到 dest，带超时和重试。"""
+    import urllib.request
+
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "notify-hooks-installer"})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                dest.write_bytes(resp.read())
+            return True
+        except Exception as exc:
+            if attempt == 2:
+                fail(f"下载失败: {url} — {exc}")
+                return False
+            print(f"    重试 ({attempt + 2}/3)...")
     return False
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 步骤
-# ═══════════════════════════════════════════════════════════════════════════════
+# ── 安装步骤 ──────────────────────────────────────────────────────────────────
 
 def check_python():
-    """检查 Python 版本。"""
     ver = sys.version_info
     if ver < (3, 8):
         fail(f"需要 Python >= 3.8，当前 {ver.major}.{ver.minor}")
@@ -91,33 +102,27 @@ def check_python():
     return True
 
 
-def copy_script():
-    """复制 notify.py 到 ~/.claude/hooks/。"""
-    if not SOURCE_SCRIPT.exists():
-        fail(f"源文件不存在: {SOURCE_SCRIPT}")
-        return False
+def download_notify():
+    """从 GitHub 下载 notify.py。"""
     HOOKS_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SOURCE_SCRIPT, TARGET_SCRIPT)
-    ok(f"已复制 notify.py → {TARGET_SCRIPT}")
+    if not fetch(NOTIFY_URL, TARGET_SCRIPT):
+        return False
+    ok(f"已下载 notify.py → {TARGET_SCRIPT}")
     return True
 
 
-def copy_config():
-    """复制 config.example.json（仅当目标不存在时）。"""
+def create_config():
+    """创建默认 config.json（仅当不存在时）。"""
     if TARGET_CONFIG.exists():
         ok("config.json 已存在，跳过")
         return True
-    if SOURCE_CONFIG.exists():
-        shutil.copy2(SOURCE_CONFIG, TARGET_CONFIG)
-        ok(f"已复制 config.json → {TARGET_CONFIG}")
-    else:
-        warn("config.example.json 不存在，跳过（将使用默认 auto 模式）")
+    TARGET_CONFIG.write_text(DEFAULT_CONFIG, encoding="utf-8")
+    ok(f"已创建 config.json → {TARGET_CONFIG}")
     return True
 
 
 def merge_hooks():
-    """合并 hooks 配置到 settings.json，保留已有设置。"""
-    # 读取已有 settings
+    """合并 hooks 到 settings.json，保留已有配置。"""
     if SETTINGS_PATH.exists():
         try:
             cfg = json.loads(SETTINGS_PATH.read_text("utf-8"))
@@ -133,14 +138,12 @@ def merge_hooks():
     if not isinstance(existing_hooks, dict):
         existing_hooks = {}
 
-    # 检查是否需要添加
     added = []
     skipped = []
     for event in HOOKS_TEMPLATE:
         if _hook_already_registered(existing_hooks, event):
             skipped.append(event)
         elif event in existing_hooks:
-            # 事件已存在但没有 notify.py → 追加到第一个 matcher 组
             existing_hooks[event][0]["hooks"].append(
                 HOOKS_TEMPLATE[event][0]["hooks"][0]
             )
@@ -152,10 +155,10 @@ def merge_hooks():
     if added:
         cfg["hooks"] = existing_hooks
         # 备份
-        backup_path = SETTINGS_PATH.with_suffix(
-            f".json.bak-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-        )
         if SETTINGS_PATH.exists():
+            backup_path = SETTINGS_PATH.with_suffix(
+                f".json.bak-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            )
             shutil.copy2(SETTINGS_PATH, backup_path)
             ok(f"已备份 settings.json → {backup_path.name}")
 
@@ -173,8 +176,17 @@ def merge_hooks():
     return True
 
 
+def _hook_already_registered(existing_hooks, event):
+    entries = existing_hooks.get(event, [])
+    for entry in entries:
+        for h in entry.get("hooks", []):
+            if "notify.py" in h.get("command", ""):
+                return True
+    return False
+
+
 def verify():
-    """验证安装是否完整。"""
+    """验证安装。"""
     errors = []
 
     if not TARGET_SCRIPT.exists():
@@ -200,16 +212,14 @@ def verify():
     return True
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# 入口
-# ═══════════════════════════════════════════════════════════════════════════════
+# ── 入口 ──────────────────────────────────────────────────────────────────────
 
 def install():
     print("notify-hooks 安装\n")
     steps = [
         ("Python 版本", check_python),
-        ("复制脚本", copy_script),
-        ("复制配置", copy_config),
+        ("下载 notify.py", download_notify),
+        ("创建 config.json", create_config),
         ("合并 hooks", merge_hooks),
         ("验证安装", verify),
     ]
@@ -226,6 +236,7 @@ def install():
     print(f"  模式: auto（默认自动放行）")
     print(f"  切换: 编辑 {TARGET_CONFIG}")
     print(f"  日志: {HOOKS_DIR / 'notify_error.log'}")
+    print(f"  重启 Claude Code 即可生效")
     return 0
 
 
