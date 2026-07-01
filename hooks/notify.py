@@ -612,9 +612,11 @@ def show_pre_tool_use(data):
 # ═══════════════════════════════════════════════════════════════════════════
 
 _DONE_AUTO_CLOSE_MS = 3000
+_DONE_DEBOUNCE_S = 10  # 10 秒内不重复弹通知（Stop 每轮响应都触发，非仅任务完成时）
 _DONE_W = 320
 _DONE_H = 70
 _DONE_BORDER = "#047857"  # 边框色（比背景深一号）
+_LAST_NOTIFY = BASE_DIR / ".last_stop_notify"
 
 
 def _center(root, w, h):
@@ -624,9 +626,30 @@ def _center(root, w, h):
 
 
 def show_done_dialog(data):
-    """回复结束时弹轻量通知（VS Code 前台时跳过）。"""
+    """回复结束时弹轻量通知。
+
+    两个保护：
+    1. 防抖 — Stop 在每轮响应结束时都触发（非仅任务完成），10 秒内不重复弹
+    2. 硬截止 — update 轮询最多 5 秒，超时后强制销毁，防止永不关闭
+    """
+    # ── 防抖：避免工具调用间歇反复弹通知 ──
+    try:
+        now = time.time()
+        if _LAST_NOTIFY.exists():
+            last = float(_LAST_NOTIFY.read_text().strip())
+            if now - last < _DONE_DEBOUNCE_S:
+                return None
+    except Exception:
+        pass
+
     if _is_host_foreground():
         return None
+
+    # 记录时间（显示通知前，防止并发）
+    try:
+        _LAST_NOTIFY.write_text(str(now))
+    except Exception:
+        pass
 
     root = tk.Tk()
     root.title("")
@@ -649,7 +672,10 @@ def show_done_dialog(data):
         if closed["v"]:
             return
         closed["v"] = True
-        root.destroy()
+        try:
+            root.destroy()
+        except tk.TclError:
+            pass
 
     root.after(_DONE_AUTO_CLOSE_MS, close)
     root.bind("<Escape>", lambda e: close())
@@ -658,14 +684,22 @@ def show_done_dialog(data):
     root.protocol("WM_DELETE_WINDOW", close)
     root.lift()
     root.focus_force()
-    # 用 update 轮询替代 mainloop：避免依赖 tk 事件循环的不可靠回调
-    deadline = time.monotonic() + (_DONE_AUTO_CLOSE_MS / 1000) + 1.0
+
+    # update 轮询 + 硬截止（不依赖 tk after 回调）
+    deadline = time.monotonic() + (_DONE_AUTO_CLOSE_MS / 1000) + 2.0
     while not closed["v"] and time.monotonic() < deadline:
         try:
             root.update()
         except tk.TclError:
             break
-        time.sleep(0.05)
+        time.sleep(0.02)
+
+    # 安全网：超时强制销毁
+    if not closed["v"]:
+        try:
+            root.destroy()
+        except tk.TclError:
+            pass
     return None
 
 
