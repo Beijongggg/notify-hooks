@@ -207,7 +207,7 @@ def _popup_geometry(root, w, h):
 
 
 def _gui_permission_popup(data, tool_name):
-    """模态弹窗 → 返回 True(允许) 或 False(拒绝)。"""
+    """模态弹窗 → 返回 True(允许) False(拒绝) None(透传: 切回前台)。"""
     tool_input = data.get("tool_input") or {}
     action_desc = _tool_action_desc(tool_name, tool_input)
 
@@ -244,6 +244,15 @@ def _gui_permission_popup(data, tool_name):
     btn_frame.pack(fill="x", pady=(14, 0))
 
     result = {"v": False}
+
+    # 轮询：切回前台时自动关闭弹窗并透传
+    def _poll_foreground():
+        if _is_vscode_foreground():
+            result["v"] = None  # 透传信号
+            root.destroy()
+        else:
+            root.after(500, _poll_foreground)
+    root.after(500, _poll_foreground)
 
     def allow():
         result["v"] = True
@@ -295,6 +304,8 @@ def show_permission_dialog(data):
             return None
         # 后台 → 弹出中文 GUI 授权
         allowed = _gui_permission_popup(data, tool_name)
+        if allowed is None:
+            return None  # 切回前台 → 透传
         if allowed:
             return {"behavior": "allow", "updatedPermissions": []}
         return {"behavior": "deny"}
@@ -321,6 +332,8 @@ def show_pre_tool_use(data):
         if _is_vscode_foreground():
             return None  # 前台 → 透传
         allowed = _gui_permission_popup(data, tool_name)
+        if allowed is None:
+            return None  # 切回前台 → 透传
         decision = "allow" if allowed else "deny"
         return {"permissionDecision": decision, "updatedInput": {}}
 
