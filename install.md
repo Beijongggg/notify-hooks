@@ -10,14 +10,27 @@
 
 ## 安装步骤
 
-### 1. 复制脚本
+### 一键安装（推荐）
+
+```bash
+python install.py
+```
+
+自动完成：复制脚本 → 复制配置 → 合并 hooks 到 settings.json → 验证。
+
+### 手动安装
+
+<details>
+<summary>展开手动步骤</summary>
+
+#### 1. 复制脚本
 
 ```bash
 mkdir -p ~/.claude/hooks
 cp hooks/notify.py ~/.claude/hooks/notify.py
 ```
 
-### 2. （可选）复制配置文件
+#### 2. （可选）复制配置文件
 
 ```bash
 cp config.example.json ~/.claude/hooks/config.json
@@ -25,7 +38,7 @@ cp config.example.json ~/.claude/hooks/config.json
 
 不复制配置文件则默认以 **`auto`（自动放行）** 模式运行，所有工具自动放行无弹窗。
 
-### 3. 配置 Claude Code
+#### 3. 配置 Claude Code
 
 编辑 Claude Code 的 settings.json，添加以下 hooks 配置：
 
@@ -64,6 +77,8 @@ cp config.example.json ~/.claude/hooks/config.json
 - **用户级设置**：`~/.claude/settings.json`
 - **项目级设置**：`.claude/settings.json`
 - **VS Code 中打开**：`Ctrl+Shift+P` → `Claude Code: Open Settings (JSON)`
+
+</details>
 
 ---
 

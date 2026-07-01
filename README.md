@@ -36,14 +36,13 @@ Claude 提问   → 轻量通知提醒
 ## 🚀 快速开始
 
 ```bash
-# 1. 复制脚本
-mkdir -p ~/.claude/hooks
-cp hooks/notify.py ~/.claude/hooks/
-
-# 2. 编辑 ~/.claude/settings.json，添加 hooks 配置
+# 一键安装
+python install.py
 ```
 
-完整安装步骤与配置说明见 [install.md](install.md)。
+安装后重启 Claude Code 即可生效。
+
+> 详细步骤与手动安装见 [install.md](install.md)。
 
 ---
 
