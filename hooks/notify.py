@@ -8,6 +8,7 @@ Claude Code Hooks — v2
   Stop → VS Code 后台时轻量完成通知，前台时跳过
 """
 
+import os
 import sys
 import json
 import traceback
@@ -16,7 +17,8 @@ import tkinter as tk
 from pathlib import Path
 
 # ═══════════════════════════════════════════════════════════════════════════
-BASE_DIR = Path(__file__).resolve().parent
+# 使用 os.path.abspath 而非 Path.resolve()，避免 Git Bash 下路径解析异常
+BASE_DIR = Path(os.path.abspath(__file__)).parent
 CONFIG_PATH = BASE_DIR / "config.json"
 ERROR_LOG = BASE_DIR / "notify_error.log"
 _MAX_STDIN_BYTES = 2 * 1024 * 1024

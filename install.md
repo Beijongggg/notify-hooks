@@ -51,8 +51,28 @@ code .claude/settings.json
 ```json
 {
   "hooks": {
-    "PermissionRequest": "python ~/.claude/hooks/notify.py",
-    "Stop": "python ~/.claude/hooks/notify.py"
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ~/.claude/hooks/notify.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ~/.claude/hooks/notify.py"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
