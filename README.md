@@ -12,6 +12,14 @@
 
 ---
 
+> ⚠️ **状态：暂未维护 / 暂不可用**
+>
+> 本项目目前**暂未维护和测试，暂不可用**。代码仅供参考，不保证可正常运行，请谨慎使用。
+>
+> **Status: Unmaintained / Currently Unavailable** — This project is currently not maintained or tested and is not available for use. Code is for reference only.
+
+---
+
 ## 📖 Overview
 
 Replaces native terminal permission prompts with GUI dialogs when Claude Code runs in the background, via the Claude Code Hooks system.
